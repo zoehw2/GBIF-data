@@ -1,0 +1,165 @@
+---
+title: "GBIF pull"
+author: "Zoë Hillier-Weltman"
+date: "12/04/2022"
+output: html_document
+---
+libraries
+```{r}
+library(rgbif)
+library(tidyverse)
+library(purrr)
+library(rgbif) # for occ_download
+library(taxize) # for get_gbifid_
+library(sf)
+library(sp)
+library(rgdal)
+library(raster)
+library(rgeos)
+library(here)
+library(plotKML)
+library(maptools)
+library(lattice)
+library(mgcv)
+library(dplyr)
+library(glmm)
+library(MCMCglmm)
+library(gam)
+library(corrr)
+library(corrplot)
+library(geosphere) #polygons
+library(data.table) # Using a data.table approach
+```
+
+creating polygon coords via centroids around site coords
+```{r}
+sites <- read.csv("sites.csv")
+sites<-as.data.frame(sites)
+
+# Convert to data.table
+setDT(sites)
+longlat_ids<- subset(sites, select  = c(long, lat, site))%>%
+  rename(decimalLongitude=long, decimalLatitude=lat, site=site)
+longlat<-longlat_ids[,c( "decimalLongitude", "decimalLatitude")]
+
+by(longlat, seq_len(nrow(longlat)), function(row) centroid(longlat))
+
+for (nrow in longlat) {
+  centroid(longlat)
+}
+
+radius <- 0.1 # radius in meters
+
+# define the plot edges based upon the plot radius. 
+
+yPlus <- longlat$decimalLatitude+radius
+xPlus <- longlat$decimalLongitude+radius
+yMinus <- longlat$decimalLatitude-radius
+xMinus <- longlat$decimalLongitude-radius
+
+square=cbind(xMinus,yPlus,  # NW corner
+             xPlus, yPlus,  # NE corner
+             xPlus,yMinus,  # SE corner
+             xMinus,yMinus, # SW corner
+             xMinus,yPlus)  # NW corner again - close ploygon
+
+ID=longlat_ids$site
+
+polys <- SpatialPolygons(mapply(function(poly, id) 
+{
+  xy <- matrix(poly, ncol=2, byrow=TRUE)
+  Polygons(list(Polygon(xy)), ID=id)
+}, 
+split(square, row(square)), ID),
+proj4string=CRS(as.character("+proj=longlat +datum=WGS84 +no_defs")))
+
+plot(polys)#unnecessary and sad
+#add a site column to the polygon spatialpolydataframe
+spdf<-addAttrToGeom(polys, longlat_ids, match.ID = F)
+```
+
+polygon coords
+```{r}
+wkts="MULTIPOLYGON (((-120.7522 36.74033, -120.8422 36.74033, -120.8422 36.65033, -120.7522 36.65033, -120.7522 36.74033)),
+((-120.767 36.75154, -120.857 36.75154, -120.857 36.66154, -120.767 36.66154, -120.767 36.75154)),
+((-120.7673 36.75054, -120.8573 36.75054, -120.8573 36.66054, -120.7673 36.66054, -120.7673 36.75054)),
+((-120.7561 36.74501, -120.8461 36.74501, -120.8461 36.65501, -120.7561 36.65501, -120.7561 36.74501)),
+((-119.4435 34.90022, -119.5335 34.90022, -119.5335 34.81022, -119.4435 34.81022, -119.4435 34.90022)),
+((-118.5575 34.92099, -118.6475 34.92099, -118.6475 34.83099, -118.5575 34.83099, -118.5575 34.92099)),
+((-119.4381 34.89373, -119.5281 34.89373, -119.5281 34.80373, -119.4381 34.80373, -119.4381 34.89373)),
+((-119.441 34.89862, -119.531 34.89862, -119.531 34.80862, -119.441 34.80862, -119.441 34.89862)),
+((-119.4358 34.98324, -119.5258 34.98324, -119.5258 34.89324, -119.4358 34.89324, -119.4358 34.98324)),
+((-119.4355 34.99222, -119.5255 34.99222, -119.5255 34.90222, -119.4355 34.90222, -119.4355 34.99222)),
+((-119.8441 35.09095, -119.9341 35.09095, -119.9341 35.00095, -119.8441 35.00095, -119.8441 35.09095)),
+((-119.8512 35.09401, -119.9412 35.09401, -119.9412 35.00401, -119.8512 35.00401, -119.8512 35.09401)),
+((-119.68 35.24677, -119.77 35.24677, -119.77 35.15677, -119.68 35.15677, -119.68 35.24677)),
+((-119.6675 35.23766, -119.7575 35.23766, -119.7575 35.14766, -119.6675 35.14766, -119.6675 35.23766)),
+((-119.6294 35.20745, -119.7194 35.20745, -119.7194 35.11745, -119.6294 35.11745, -119.6294 35.20745)),
+ ((-119.5757 35.16066, -119.6657 35.16066, -119.6657 35.07066, -119.5757 35.07066, -119.5757 35.16066)),
+ ((-119.6156 35.11783, -119.7056 35.11783, -119.7056 35.02783, -119.6156 35.02783, -119.6156 35.11783)),
+((-119.7465 35.28677, -119.8365 35.28677, -119.8365 35.19677, -119.7465 35.19677, -119.7465 35.28677)),
+((-120.7569 36.7451, -120.8469 36.7451, -120.8469 36.6551, -120.7569 36.6551, -120.7569 36.7451)),
+((-119.5847 35.16421, -119.6747 35.16421, -119.6747 35.07421, -119.5847 35.07421, -119.5847 35.16421)),
+((-119.5323 35.13561, -119.6223 35.13561, -119.6223 35.04561, -119.5323 35.04561, -119.5323 35.13561)),
+((-119.539 35.39931, -119.629 35.39931, -119.629 35.30931, -119.539 35.30931, -119.539 35.39931)),
+((-119.5623 35.70428, -119.6523 35.70428, -119.6523 35.61428, -119.5623 35.61428, -119.5623 35.70428)),
+((-120.5018 36.60787, -120.5918 36.60787, -120.5918 36.51787, -120.5018 36.51787, -120.5018 36.60787)),
+((-120.6433 36.63078, -120.7333 36.63078, -120.7333 36.54078, -120.6433 36.54078, -120.6433 36.63078)),
+((-120.2591 36.25801, -120.3491 36.25801, -120.3491 36.16801, -120.2591 36.16801, -120.2591 36.25801)),
+ ((-120.0568 36.10719, -120.1468 36.10719, -120.1468 36.01719, -120.0568 36.01719, -120.0568 36.10719)))"
+
+#should be 27 polygons
+#make sure only pulling ~30k birds
+```
+
+simple data files from gbif: all
+```{r}
+#simple files
+gbif_polygons1<-read.csv("0094467-210914110416597.csv", sep="\t")
+gbif_polygons2<-read.csv("0094469-210914110416597.csv", sep="\t")
+gbif_polygons3<-read.csv("0094463-210914110416597.csv", sep="\t")
+gbif_polygons4<-read.csv("0094465-210914110416597.csv", sep="\t")
+
+merged_gbif_2<-full_join(gbif_polygons1, gbif_polygons2)
+merged_gbif_1<-full_join(gbif_polygons3, gbif_polygons4)
+merged_gbif<-full_join(merged_gbif_1, merged_gbif_2)
+#have a few duplicates, should be ~29k birds
+```
+
+merging and cleaning
+```{r}
+length(unique(merged_gbif$gbifID)) == nrow(merged_gbif)
+
+clean_gbif<-merged_gbif %>%
+  distinct(gbifID, .keep_all = TRUE)
+
+#filter individual counts
+clean_gbif<-clean_gbif%>%
+  drop_na(individualCount)
+```
+
+cuyama sites
+```{r}
+wkts_cuyama="MULTIPOLYGON (
+((-119.4381 34.89373, -119.5281 34.89373, -119.5281 34.80373, -119.4381 34.80373, -119.4381 34.89373)),
+((-119.441 34.89862, -119.531 34.89862, -119.531 34.80862, -119.441 34.80862, -119.441 34.89862)),
+((-119.4358 34.98324, -119.5258 34.98324, -119.5258 34.89324, -119.4358 34.89324, -119.4358 34.98324)),
+((-119.4355 34.99222, -119.5255 34.99222, -119.5255 34.90222, -119.4355 34.90222, -119.4355 34.99222)),
+((-119.8441 35.09095, -119.9341 35.09095, -119.9341 35.00095, -119.8441 35.00095, -119.8441 35.09095)),
+((-119.8512 35.09401, -119.9412 35.09401, -119.9412 35.00401, -119.8512 35.00401, -119.8512 35.09401))
+)"
+
+#right now this was pulled manually from gbif
+#fix that 
+
+#read in gbif data
+gbif_polygons_cuyama<-read.csv("0220244-210914110416597.csv", sep="\t")
+
+#filter individual counts
+clean_gbif_cuyama<-gbif_polygons_cuyama%>%
+  drop_na(individualCount)
+```
+
+
+
+
