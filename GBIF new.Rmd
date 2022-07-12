@@ -1,0 +1,313 @@
+---
+title: "GBIF new"
+author: "Zoë Hillier-Weltman"
+date: "28/06/2022"
+output: html_document
+---
+```{r}
+library(tidyverse)
+library(sf)
+library(sp)
+library(rgdal)
+library(raster)
+library(rgeos)
+library(here)
+```
+
+recursive
+```{r}
+data_path <- "sites"
+
+read_zip = function(f){
+ s = sf::st_read(f)
+ return(s[,c("Name")])
+}
+polygons_read <- as.list(dir(data_path, pattern="*.kml", full.names=T)) 
+polygons<-do.call(rbind, lapply(polygons_read, read_zip))
+
+#changing format
+polygon_wkts<-st_as_text(polygons$geometry)
+
+```
+
+don't run/need
+```{r}
+#if only have shapefile
+dir.create("test")
+file.copy(system.file("Tecopa_oepn.shp", package="sf"), "Tecopa_oepn.shp")
+read_sf("Tecopa_oepn.shp")
+read_sf("Tecopa_oepn.shp", options="SHAPE_RESTORE_SHX='YES'")        
+read_sf("Tecopa_oepn.shp", options="SHAPE_RESTORE_SHX=true")  
+Sys.setenv(SHAPE_RESTORE_SHX='YES')
+read_sf("Tecopa_oepn.shp")
+```
+
+not needed
+```{r}
+#old code
+# Convert to data.table
+setDT(sites)
+longlat_ids<- subset(sites, select  = c(long, lat, site))%>%
+  rename(decimalLongitude=long, decimalLatitude=lat, site=site)
+longlat<-longlat_ids[,c( "decimalLongitude", "decimalLatitude")]
+
+by(longlat, seq_len(nrow(longlat)), function(row) centroid(longlat))
+
+for (nrow in longlat) {
+  centroid(longlat)
+}
+
+radius <- 0.1 # radius in meters
+
+# define the plot edges based upon the plot radius. 
+
+yPlus <- longlat$decimalLatitude+radius
+xPlus <- longlat$decimalLongitude+radius
+yMinus <- longlat$decimalLatitude-radius
+xMinus <- longlat$decimalLongitude-radius
+
+square=cbind(xMinus,yPlus,  # NW corner
+             xPlus, yPlus,  # NE corner
+             xPlus,yMinus,  # SE corner
+             xMinus,yMinus, # SW corner
+             xMinus,yPlus)  # NW corner again - close ploygon
+
+ID=longlat_ids$site
+
+polys <- SpatialPolygons(mapply(function(poly, id) 
+{
+  xy <- matrix(poly, ncol=2, byrow=TRUE)
+  Polygons(list(Polygon(xy)), ID=id)
+}, 
+split(square, row(square)), ID),
+proj4string=CRS(as.character("+proj=longlat +datum=WGS84 +no_defs")))
+
+plot(tecopa_open_sf)
+plot(st_geometry(polygons))#unnecessary and sad
+```
+
+will need to add in a buffer around sites to increase area
+```{r}
+
+```
+
+run this
+```{r}
+#send to gbif for pulling specifics
+
+library(rgbif)
+library(spocc)
+
+user<- "zoehw2"
+email <- "zoe.hillier.weltman@gmail.com"
+pwd <- "foxhunter"
+
+#aves taxon key is 212
+
+#not sure if there's a better workaround
+for (i in polygon_wkts[1:3]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[4:6]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[7:9]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[10:12]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[13:15]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[16:18]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[19:21]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[22:24]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[25:27]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[28:30]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[31:33]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[34:36]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[37:39]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[40:42]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[43:45]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[46:48]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+#testing loop
+for (i in polygon_wkts[1:3]){
+  print(i)
+}
+
+
+```
+
+merge all into one csv
+```{r}
+gbif_data<-read.csv()
+
+file_names <- dir(here, full.names = T) #where you have your files
+
+your_data_frame <- do.call(rbind,lapply(file_names,read.csv))
+
+
+data_path_2 <- "gbif_csv"
+
+read_csv = function(f){
+ s = read.csv(f)
+ return()
+}
+gbif_read <- as.list(dir(data_path_2, pattern="*.csv", full.names=T)) 
+gbif_new<-do.call(rbind, lapply(gbif_read, read_csv))
+
+```
+
+
+
