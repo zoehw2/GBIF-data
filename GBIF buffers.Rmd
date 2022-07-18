@@ -1,0 +1,453 @@
+---
+title: "GBIF buffers"
+author: "Zoë Hillier-Weltman"
+date: "14/07/2022"
+output: html_document
+---
+```{r}
+library(tidyverse)
+library(sf)
+library(sp)
+library(rgdal)
+library(raster)
+library(rgeos)
+library(here)
+```
+
+recursive
+```{r}
+data_path <- "sites"
+
+read_zip = function(f){
+ s = sf::st_read(f)
+ return(s[,c("Name")])
+}
+polygons_read <- as.list(dir(data_path, pattern="*.kml", full.names=T)) 
+polygons<-do.call(rbind, lapply(polygons_read, read_zip))
+
+#changing format
+polygon_wkts<-st_as_text(polygons$geometry)
+
+```
+
+don't run/need
+```{r}
+#if only have shapefile
+dir.create("test")
+file.copy(system.file("Tecopa_oepn.shp", package="sf"), "Tecopa_oepn.shp")
+read_sf("Tecopa_oepn.shp")
+read_sf("Tecopa_oepn.shp", options="SHAPE_RESTORE_SHX='YES'")        
+read_sf("Tecopa_oepn.shp", options="SHAPE_RESTORE_SHX=true")  
+Sys.setenv(SHAPE_RESTORE_SHX='YES')
+read_sf("Tecopa_oepn.shp")
+```
+
+not needed
+```{r}
+#old code
+# Convert to data.table
+setDT(sites)
+longlat_ids<- subset(sites, select  = c(long, lat, site))%>%
+  rename(decimalLongitude=long, decimalLatitude=lat, site=site)
+longlat<-longlat_ids[,c( "decimalLongitude", "decimalLatitude")]
+
+by(longlat, seq_len(nrow(longlat)), function(row) centroid(longlat))
+
+for (nrow in longlat) {
+  centroid(longlat)
+}
+
+radius <- 0.1 # radius in meters
+
+# define the plot edges based upon the plot radius. 
+
+yPlus <- longlat$decimalLatitude+radius
+xPlus <- longlat$decimalLongitude+radius
+yMinus <- longlat$decimalLatitude-radius
+xMinus <- longlat$decimalLongitude-radius
+
+square=cbind(xMinus,yPlus,  # NW corner
+             xPlus, yPlus,  # NE corner
+             xPlus,yMinus,  # SE corner
+             xMinus,yMinus, # SW corner
+             xMinus,yPlus)  # NW corner again - close ploygon
+
+ID=longlat_ids$site
+
+polys <- SpatialPolygons(mapply(function(poly, id) 
+{
+  xy <- matrix(poly, ncol=2, byrow=TRUE)
+  Polygons(list(Polygon(xy)), ID=id)
+}, 
+split(square, row(square)), ID),
+proj4string=CRS(as.character("+proj=longlat +datum=WGS84 +no_defs")))
+
+plot(tecopa_open_sf)
+plot(st_geometry(polygons))#unnecessary and sad
+```
+
+will need to add in a buffer around sites to increase area
+- jenna's code
+```{r}
+#set key attributes####
+x = 4326 #crs for first spatial df
+y = 4326 #crs for second spatial df
+z = 5 #set buffer is using a join to point data 
+
+#data, read in, set as sf, list projection####
+polygons_buffered <- polygons %>% 
+  st_as_sf(coords=c("long","lat"), crs = x, remove=FALSE) %>% 
+  st_transform(32610)%>%
+  st_make_valid()#crs = 32610 is UTM and will return distances in meters
+
+#jenna made this for point data, not polygons
+#hmm
+
+#create buffer for point data####
+buffer <- st_buffer(polygons_buffered, z)%>%
+  st_make_valid()#decide on spatial scale
+
+polygons_buffered<-buffer%>%st_transform(4326)%>%
+  st_make_valid()
+
+plot(polygons_buffered)
+
+#write_csv(interactions, "data/interactions_5.csv") #ensure you rename file to add scale if used to set a buffer
+
+p = st_polygon(polygons)
+pbuf = st_buffer(polygons, 5)%>%
+  st_make_valid()
+plot(pbuf)
+plot(pbuf,add=TRUE,col="red")
+
+library(crsuggest)
+library(leafsync)
+
+# find an appropriate projected metric CRS
+crsuggest::suggest_crs(polygons, type = "projected", units='m')#NAD83, in m
+
+result <- polygons %>% 
+  sf::st_transform(6423) %>%  # transform to a metric CRS
+  sf::st_buffer(5)%>%
+  st_make_valid()# buffer by 10 meters
+
+result<-result %>% 
+  sf::st_transform(4326) %>%  # transform back
+  st_make_valid()
+
+# a visual check / note how the polygons are overlaid
+leafsync::latticeview(mapview::mapview(polygons),
+                      mapview::mapview(result))
+
+result%>%ggplot()+
+  geom_sf()
+
+polygon_buffered_wkts<-st_as_text(result$geometry)
+
+```
+
+above code not running for gbif pull
+```{r}
+
+```
+
+run this
+```{r}
+#send to gbif for pulling specifics
+
+library(rgbif)
+library(spocc)
+
+user<- "zoehw2"
+email <- "zoe.hillier.weltman@gmail.com"
+pwd <- "foxhunter"
+
+#aves taxon key is 212
+
+#not sure if there's a better workaround
+for (i in polygon_buffered_wkts[1:3]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[4:6]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[7:9]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[10:12]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[13:15]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[16:18]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[19:21]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[22:24]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[25:27]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[28:30]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[31:33]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[34:36]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[37:39]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[40:42]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[43:45]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in polygon_wkts[46:48]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+#testing loop
+for (i in polygon_wkts[1:3]){
+  print(i)
+}
+
+
+```
+
+merge all into one csv
+recursive is being annoying, doing manually to just get going now
+```{r}
+data_path_2 <- "gbif_csv"
+
+read_csv = function(f){
+ s = read_csv(f)
+ return()
+}
+
+gbif_read <- as.list(dir(data_path_2, pattern="*.csv", full.names=T)) 
+gbif_new<-do.call(rbind, lapply(gbif_read, read_csv))
+
+
+
+library(readr)
+Carrizo_1 <- read_delim("gbif_csv/Carrizo_1.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Carrizo_1$site<-"Carrizo_1"
+
+Carrizo_3 <- read_delim("gbif_csv/Carrizo_3.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Carrizo_3$site<-"Carrizo_3"
+
+Carrizo_4 <- read_delim("gbif_csv/Carrizo_4.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Carrizo_4$site<-"Carrizo_4"
+
+Carrizo_5 <- read_delim("gbif_csv/Carrizo_5.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Carrizo_5$site<-"Carrizo_5"
+
+Carrizo_6 <- read_delim("gbif_csv/Carrizo_6.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Carrizo_6$site<-"Carrizo_6"
+
+Carrizo_soda_shrubs <- read_delim("gbif_csv/Carrizo_soda_shrubs.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Carrizo_soda_shrubs$site<-"Carrizo_soda_shrubs"
+
+Cuyama_3 <- read_delim("gbif_csv/Cuyama_3.csv", 
+delim = "\t", escape_double = FALSE, 
+trim_ws = TRUE)
+Cuyama_3$site<-"Cuyama_3"
+
+Panoche_1 <- read_delim("gbif_csv/Panoche_1.csv", 
+delim = "\t", escape_double = FALSE, 
+trim_ws = TRUE)
+Panoche_1$site<-"Panoche_1"
+
+Mojave_4 <- read_delim("gbif_csv/Mojave_4.csv", 
+delim = "\t", escape_double = FALSE, 
+trim_ws = TRUE)
+Mojave_4$site<-"Mojave_4"
+
+Panoche_3 <- read_delim("gbif_csv/Panoche_3.csv", 
+delim = "\t", escape_double = FALSE, 
+trim_ws = TRUE)
+Panoche_3$site<-"Panoche_3"
+
+Semitropic <- read_delim("gbif_csv/Semitropic.csv", 
+delim = "\t", escape_double = FALSE, 
+trim_ws = TRUE)
+Semitropic$site<-"Semitropic"
+
+Sunset_1 <- read_delim("gbif_csv/Sunset_1.csv", 
+delim = "\t", escape_double = FALSE, 
+trim_ws = TRUE)
+Sunset_1$site<-"Sunset_1"
+
+Tejon_ERG <- read_delim("gbif_csv/Tejon_ERG.csv", 
+delim = "\t", escape_double = FALSE, 
+trim_ws = TRUE)
+Tejon_ERG$site<-"Tejon_ERG"
+
+gbif_new<-rbind(Carrizo_1,Carrizo_3,Carrizo_4,Carrizo_5,Carrizo_6,Carrizo_soda_shrubs,Cuyama_3,Mojave_4,Panoche_1,Panoche_3,Semitropic,Sunset_1,Tejon_ERG)
+```
+
+filter out nas, create new rows for individualcount>1
+```{r}
+#if individual count = na
+gbif_new<-gbif_new %>% drop_na(individualCount)
+
+#if individual count >1
+expanded <- data.frame(gbif_new[rep(seq_len(dim(gbif_new)[1]),  with(gbif_new, ifelse(individualCount > 0 & !is.na(individualCount), individualCount, 1))
+), , drop = FALSE], row.names=NULL)
+
+expanded$individualCount<-1
+
+write.csv(expanded, file = "GBIF data.csv")
+
+```
+
+
+
+```{r}
