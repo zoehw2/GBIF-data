@@ -1,0 +1,24 @@
+---
+title: "sites_gbif"
+author: "Zoë Hillier-Weltman"
+date: "08/08/2022"
+output: html_document
+---
+recursive
+```{r}
+data_path <- "sites"
+
+read_zip = function(f){
+ s = sf::st_read(f)
+ return(s[,c("Name")])
+}
+polygons_read <- as.list(dir(data_path, pattern="*.kml", full.names=T)) 
+polygons<-do.call(rbind, lapply(polygons_read, read_zip))
+
+#changing format
+polygon_wkts<-st_as_text(polygons$geometry)
+
+mean(st_area(polygons))#10km^2 should be bigger than 0.27km^2
+
+```
+

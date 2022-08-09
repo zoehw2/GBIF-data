@@ -1,0 +1,360 @@
+---
+title: "regional_gbif"
+author: "Zoë Hillier-Weltman"
+date: "08/08/2022"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(sf)
+library(sp)
+library(rgdal)
+library(raster)
+library(rgeos)
+library(here)
+```
+
+recursive
+```{r}
+data_path <- "sites"
+
+read_zip = function(f){
+ s = sf::st_read(f)
+ return(s[,c("Name")])
+}
+polygons_read <- as.list(dir(data_path, pattern="*.kml", full.names=T)) 
+polygons<-do.call(rbind, lapply(polygons_read, read_zip))
+
+#changing format
+polygon_wkts<-st_as_text(polygons$geometry)
+
+mean(st_area(polygons))#10km^2 should be bigger than 0.27km^2
+
+```
+
+```{r}
+bar<-bbox2wkt(
+-117.4696,
+35.00635,
+-117.3455,
+35.10892)
+
+carr<-bbox2wkt(-119.7679,
+35.13229,
+-119.6434,
+35.23473)
+  
+coal<-bbox2wkt(
+  -120.3666,
+36.16194,
+-120.2405,
+36.26453)
+
+cuy<-bbox2wkt(-119.6811,
+34.89593,
+-119.5572,
+34.99847)
+  
+lok<-bbox2wkt(-119.6463,
+35.30242,
+-119.5216,
+35.40508)
+  
+mjv<-bbox2wkt(-115.8832,
+34.93301,
+-115.7590,
+35.03560)
+  
+pan<-bbox2wkt(-120.8391,
+36.62221,
+-120.7120,
+36.72470)
+  
+sj<-bbox2wkt(-119.4977,
+35.48213,
+-119.3722,
+35.58472)
+  
+tec<-bbox2wkt(-116.2467,
+35.80119,
+-116.1212,
+35.90377)
+
+buffered_wkts_prog<-rbind(bar,carr,coal,cuy,lok,mjv,pan,sj,tec)
+```
+
+```{r}
+library(wellknown)
+library(spocc)
+
+x = 4326 #crs for first spatial df
+y = 4326 #crs for second spatial df
+#293.161m is radius of avg area
+#adding a 100km buffer 
+#343.1831m is radius of buffered points
+z = 5630 #buffer is in m
+
+#data, read in, set as sf, list projection####
+buffered_regional_centroids_prog <- regional_centroids_prog %>% 
+  st_as_sf(coords=c("long","lat"), crs = x, remove=FALSE) %>% 
+  st_transform(32610)%>%
+  st_make_valid()#crs = 32610 is UTM and will return distances in meters
+
+#create buffer for point data
+
+buffered_regional_centroids_prog<-st_buffer(regional_centroids_prog, z)%>%
+  st_transform(4326)%>%
+  st_make_valid()
+
+plot(buffered_regional_centroids_prog)
+
+st_area(buffered_regional_centroids_prog)
+
+plot_sf(buffered_regional_centroids_prog)
+```
+
+loop would be faster but for now this
+```{r}
+
+
+bar<-bbox2wkt(
+-117.4696,
+35.00635,
+-117.3455,
+35.10892)
+
+carr<-bbox2wkt(-119.7679,
+35.13229,
+-119.6434,
+35.23473)
+  
+coal<-bbox2wkt(
+  -120.3666,
+36.16194,
+-120.2405,
+36.26453)
+
+cuy<-bbox2wkt(-119.6811,
+34.89593,
+-119.5572,
+34.99847)
+  
+lok<-bbox2wkt(-119.6463,
+35.30242,
+-119.5216,
+35.40508)
+  
+mjv<-bbox2wkt(-115.8832,
+34.93301,
+-115.7590,
+35.03560)
+  
+pan<-bbox2wkt(-120.8391,
+36.62221,
+-120.7120,
+36.72470)
+  
+sj<-bbox2wkt(-119.4977,
+35.48213,
+-119.3722,
+35.58472)
+  
+tec<-bbox2wkt(-116.2467,
+35.80119,
+-116.1212,
+35.90377)
+
+buffered_wkts_prog<-rbind(bar,carr,coal,cuy,lok,mjv,pan,sj,tec)
+
+```
+
+redoing pull for buffered centroids
+do this off good wifi
+```{r}
+library(rgbif)
+library(spocc)
+
+user<- "zoehw2"
+email <- "zoe.hillier.weltman@gmail.com"
+pwd <- "foxhunter"
+
+#aves taxon key is 212
+
+#not sure if there's a better workaround
+for (i in buffered_wkts_prog[1:3]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in buffered_wkts_prog[4:6]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in buffered_wkts_prog[7:9]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+```
+
+for prog report- regions buffered (oops flipped)
+```{r}
+library(rgbif)
+library(spocc)
+
+user<- "zoehw2"
+email <- "zoe.hillier.weltman@gmail.com"
+pwd <- "foxhunter"
+
+#aves taxon key is 212
+
+#not sure if there's a better workaround
+for (i in buffered_wkts[1:3]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in buffered_wkts[4:6]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in buffered_wkts[7:9]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in buffered_wkts[10:12]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in buffered_wkts[13]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+```
+
+```{r}
+data_path_2 <- "regions"
+
+read_csv = function(f){
+ s = read_csv(f)
+ return()
+}
+
+#gbif_read <- as.list(dir(data_path_2, pattern="*.csv", full.names=T)) 
+#gbif_buffered<-do.call(rbind, lapply(gbif_read, read_csv))
+
+library(readr)
+Carrizo_r <- read_delim("regions/carrizo.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Carrizo_r$region<-"Carrizo"
+
+Cuyama_r <- read_delim("regions/cuyama.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Cuyama_r$region<-"Cuyama"
+
+Panoche_r <- read_delim("regions/panoche.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Panoche_r$region<-"Panoche"
+
+Barstow_r <- read_delim("regions/barstow.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Barstow_r$region<-"Barstow"
+
+Coalinga_r <- read_delim("regions/coalinga.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Coalinga_r$region<-"Coalinga"
+
+Lokern_r <- read_delim("regions/lokern.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Lokern_r$region<-"Lokern"
+
+SanJoaquin_r <- read_delim("regions/san joaquin.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+SanJoaquin_r$region<-"San Joaquin"
+
+Tecopa_r <- read_delim("regions/tecopa.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Tecopa_r$region<-"Tecopa"
+
+regional_gbif<-rbind(Carrizo_r,Cuyama_r,Panoche_r, Tecopa_r,SanJoaquin_r,Lokern_r,Coalinga_r,Barstow_r)
+
+```
+
+filter out nas, create new rows for individualcount>1
+```{r}
+#if individual count = na
+regional_gbif<-regional_gbif %>% drop_na(individualCount)
+
+#if individual count >1
+expanded_regions <- data.frame(regional_gbif[rep(seq_len(dim(regional_gbif)[1]),  with(regional_gbif, ifelse(individualCount > 0 & !is.na(individualCount), individualCount, 1))
+), , drop = FALSE], row.names=NULL)
+
+expanded_regions$individualCount<-1
+
+expanded_regions<-rename(expanded_regions,lat=decimalLatitude)
+expanded_regions<-rename(expanded_regions,long=decimalLongitude)
+
+write.csv(expanded_regions, file = "region_gbif.csv")
+```
+
