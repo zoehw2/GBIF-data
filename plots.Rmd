@@ -1,0 +1,265 @@
+---
+title: "Plots"
+author: "Zoë Hillier-Weltman"
+date: "23/08/2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+```{r, echo=FALSE}
+library(ggplot2)
+library(here)
+library(tidyverse)
+library(scales)
+library(sf)
+library(units)
+```
+
+load files
+```{r, echo=FALSE}
+expanded<-readRDS('site_gbif.rds')
+expanded_sites<-readRDS('buffered_site_gbif.rds')
+expanded_regions<-readRDS('region_gbif.rds')
+```
+
+shrub files
+```{r, echo=FALSE}
+panoche<-read.csv("Panoche.csv")
+panoche$region<-("Panoche")
+carrizo<-read.csv("Carrizo.csv")%>%
+  drop_na()
+carrizo$lat <- as.numeric(as.character(carrizo$lat))
+cuyama<-read.csv("Cuyama.csv")
+cuyama$region<-("Cuyama")
+carrizo$region<-("Carrizo")
+heartofmojave<-read.csv("Heartofmojave.csv", colClasses=c("site"="character"))
+names(heartofmojave)[3]<-paste("site_code") 
+tecopa<-read.csv("Tecopa.csv")
+sheephole<-read.csv("Sheephole.csv")
+barstow1<-read.csv("Barstow_1.csv", colClasses=c("site"="character"))
+barstow2<-read.csv("barstow_2.csv", colClasses=c("site"="character"))
+avenal<-read.csv("Avenal.csv")
+coalinga<-read.csv("Coalinga.csv")
+semitropic<-read.csv("Semitropic.csv")
+mojave<-read.csv("Mojave.csv" , colClasses=c("site"="character"))
+lokern<-read.csv("Lokern.csv")
+tejon<-read.csv("Tejon_ERG.csv", colClasses=c("site"="character"))
+
+semitropic$region<-"San Joaquin"
+coalinga$region<-"Coalinga"
+avenal$region<-"San Joaquin"
+lokern$region<-"Lokern"
+tejon$region<-"San Joaquin"
+
+new_shrubs<-full_join(panoche,carrizo)
+new_shrubs<-full_join(new_shrubs,cuyama)
+new_shrubs<-full_join(new_shrubs,tecopa)
+new_shrubs<-full_join(new_shrubs,sheephole)
+new_shrubs<-full_join(new_shrubs,barstow1)
+new_shrubs<-full_join(new_shrubs,barstow2)
+new_shrubs<-full_join(new_shrubs,heartofmojave)
+new_shrubs<-full_join(new_shrubs,coalinga)
+new_shrubs<-full_join(new_shrubs,semitropic)
+new_shrubs<-full_join(new_shrubs,avenal)
+new_shrubs<-full_join(new_shrubs,mojave)
+new_shrubs<-full_join(new_shrubs,lokern)
+new_shrubs<-full_join(new_shrubs,tejon)
+
+shrubs_sites<-new_shrubs%>%group_by(site_code,region)%>%summarise()
+```
+
+polygons
+```{r, echo=FALSE}
+data_path <- "sites"
+
+read_zip = function(f){
+ s = sf::st_read(f)
+ return(s[,c("Name")])
+}
+polygons_read <- as.list(dir(data_path, pattern="*.kml", full.names=T)) 
+polygons<-do.call(rbind, lapply(polygons_read, read_zip))
+```
+
+birds/scales for top ten species of the three scales
+```{r,echo=F, echo=FALSE}
+#note that expanded is original sites, expanded_sites is buffered sites, expanded_regions is regions
+
+birds_species<-aggregate(individualCount ~species, expanded, sum)
+birds_species$scale<-('original sites')
+
+birds_species_2<-aggregate(individualCount ~species, expanded_sites, sum)
+birds_species_2$scale<-('buffered sites')
+birds_species_regions<-aggregate(individualCount ~species, expanded_regions, sum)
+birds_species_regions$scale<-('regions')
+
+topten_1<-birds_species%>%group_by(species,scale)%>%
+    arrange(desc(individualCount)) 
+topten_1 <- topten_1[1:10,]
+
+topten_2<-birds_species_2%>%group_by(species,scale)%>%
+    arrange(desc(individualCount))
+topten_2 <- topten_2[1:10,]
+
+topten_3<-birds_species_regions%>%group_by(species,scale)%>%
+    arrange(desc(individualCount)) 
+topten_3 <- topten_3[1:10,]
+
+birds_species_all<-full_join(topten_1,topten_2)
+birds_species_all<-full_join(birds_species_all,topten_3)
+
+ggplot(birds_species_all, aes(fill=scale, y=individualCount, x=species))+
+geom_bar(position='dodge', stat='identity')+
+  theme_classic()+
+    xlab("Species")+
+  ylab("Number of bird observations")+ 
+  scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 10))+
+    theme(axis.text.x = element_text(size = 8, angle = 45, hjust = 1))
+```
+
+birds/regions
+```{r, echo=FALSE}
+gbif_region_year<-expanded_regions%>%
+  group_by(year)%>%
+  summarise(n=n())
+
+ggplot(gbif_region_year, aes(x=year, y=n))+
+  geom_point()+
+  geom_smooth(se=F)+
+  coord_cartesian(expand=F)+
+  theme_classic()+
+  scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 10))+
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 10))+
+  xlab("Year")+
+  ylab("Number of birds observed")+
+  ggtitle("Total Regional Bird Counts per Year")
+```
+
+birds by month, buffered sites
+```{r, echo=FALSE}
+birds_seasons_regions<-expanded_regions%>%
+  group_by(month, individualCount)%>%
+  aggregate(individualCount ~month, sum)
+
+ggplot(birds_seasons_regions,aes(x=month,y=individualCount))+
+  geom_point()+
+  theme_classic()+
+  geom_smooth(se=F)+
+  xlab("Month")+
+  ylab("Number of birds observed")+
+   scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 10))+
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 12))
+```
+
+shrubs and sites
+```{r, echo=FALSE}
+birds_seasons_sites_2<-expanded_sites%>%
+  group_by(month, individualCount)%>%
+  aggregate(individualCount ~month, sum)
+
+ggplot(birds_seasons_sites_2,aes(x=month,y=individualCount))+
+  geom_point()+
+  theme_classic()+
+  geom_smooth(se=F)+
+  xlab("Month")+
+  ylab("Number of birds observed")+
+   scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 10))+
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 12))
+```
+
+shrubs/km^2 and n birds
+
+```{r, echo=FALSE}
+n_shrubs <- new_shrubs %>% 
+  group_by(site_code) %>% 
+    dplyr::summarise(n_shrubs = n())
+
+n_shrubs$n_shrubs=as.numeric(levels(n_shrubs$n_shrubs))[n_shrubs$n_shrubs]
+
+polygons$area<-st_area(polygons)
+names(polygons)[1]<-paste("site_code") 
+polygons<-polygons%>%mutate(site_code = recode(site_code, 'HeartofMojave' = "Heartofmojave") )
+shrubs_by_area<-merge(new_shrubs,polygons, by='site_code')
+
+shrubs_by_area<-shrubs_by_area %>% 
+  group_by(site_code,area) %>% 
+    dplyr::summarise(n_shrubs = n())%>%
+  mutate('shrubs_m^2' = n_shrubs/area)
+
+#shrubs/km^2 since m^2 is tiny
+shrubs_by_area_km<-shrubs_by_area %>% 
+  group_by(site_code,area) %>% 
+  mutate(area=area/1000000)%>%
+    dplyr::summarise(n_shrubs = n())%>%
+  mutate('shrubs_km' = n_shrubs/area)%>%
+  drop_units()
+
+birds_shrubs_2<-aggregate(individualCount ~site_code, expanded_sites, sum)
+birds_shrubs_2$scale<-('buffered sites')
+birds_shrubs_km_buf<-full_join(birds_shrubs_2,shrubs_by_area_km)%>%
+  drop_na()
+
+ggplot(birds_shrubs_km_buf, aes(y=individualCount, x=shrubs_km))+
+geom_point()+
+  theme_classic()+
+  geom_smooth(se=F)+
+    xlab("Shrubs per square kilometer")+
+  ylab("Bird count")+ 
+  ggtitle("Shrub Density and Bird Observations at Buffered Sites")+
+  scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 10)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 20)) 
+
+```
+
+shrub density and sites
+```{r, echo=FALSE}
+ggplot(shrubs_by_area_km,aes(x=site_code,y=shrubs_km))+
+  theme_classic()+
+  geom_col()+
+  coord_cartesian(expand=T)+
+  xlab("Site")+
+  ylab("Shrubs per km^2")+ 
+  scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 20))+
+  theme(axis.text.x = element_text(size = 8, angle = 45, hjust = 1))
+```
+number of species/site
+```{r, echo=FALSE}
+n_species_sites<-expanded_sites%>%group_by(species,site_code,individualCount)%>%
+  aggregate(individualCount~species+site_code,sum)%>%
+arrange(desc(species)) 
+n_species_sites$species_count<-1
+
+n_species_sites<-n_species_sites%>%
+group_by(site_code,species_count,species) %>%
+  aggregate(species_count~site_code,sum)
+
+ggplot(n_species_sites,aes(x=site_code,y=species_count))+
+  geom_bar(position='dodge', stat='identity')+
+  theme_classic()+
+  geom_smooth(se=F)+
+  xlab("Site")+
+  ylab("Number of species")+
+   scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 10))+
+    theme(axis.text.x = element_text(size = 8, angle = 45, hjust = 1))
+```
+table formatting is wonky
+
+tables of species-regions
+```{r, echo=FALSE}
+topten_5<-expanded_regions%>%group_by(species,region)%>%
+  aggregate(individualCount~species+region,sum)%>%
+arrange(desc(individualCount)) %>% 
+group_by(region) %>% slice(1:10)
+
+knitr::kable(topten_5, format="html")
+```
+
+table of species-sites
+```{r, echo=FALSE}
+topten_4<-expanded_sites%>%group_by(species,site_code)%>%
+  aggregate(individualCount~species+site_code,sum)%>%
+arrange(desc(individualCount)) %>% 
+group_by(site_code) %>% slice(1:10)
+
+knitr::kable(topten_4, format="html")
+```
+
