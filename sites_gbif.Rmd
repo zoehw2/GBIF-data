@@ -22,3 +22,112 @@ mean(st_area(polygons))#10km^2 should be bigger than 0.27km^2
 
 ```
 
+```{r}
+data_path_2 <- "gbif_csv"
+
+read_csv = function(f){
+ s = read_csv(f)
+ return()
+}
+
+gbif_read <- as.list(dir(data_path_2, pattern="*.csv", full.names=T)) 
+gbif_new<-do.call(rbind, lapply(gbif_read, read_csv))
+
+
+
+library(readr)
+Carrizo_1 <- read_delim("gbif_csv/Carrizo_1.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Carrizo_1$site<-"Carrizo_1"
+
+Carrizo_3 <- read_delim("gbif_csv/Carrizo_3.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Carrizo_3$site<-"Carrizo_3"
+
+Carrizo_4 <- read_delim("gbif_csv/Carrizo_4.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Carrizo_4$site<-"Carrizo_4"
+
+Carrizo_5 <- read_delim("gbif_csv/Carrizo_5.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Carrizo_5$site<-"Carrizo_5"
+
+Carrizo_6 <- read_delim("gbif_csv/Carrizo_6.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Carrizo_6$site<-"Carrizo_6"
+
+Carrizo_soda_shrubs <- read_delim("gbif_csv/Carrizo_soda_shrubs.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Carrizo_soda_shrubs$site<-"Carrizo_soda_shrubs"
+
+Cuyama_3 <- read_delim("gbif_csv/Cuyama_3.csv", 
+delim = "\t", escape_double = FALSE, 
+trim_ws = TRUE)
+Cuyama_3$site<-"Cuyama_3"
+
+Panoche_1 <- read_delim("gbif_csv/Panoche_1.csv", 
+delim = "\t", escape_double = FALSE, 
+trim_ws = TRUE)
+Panoche_1$site<-"Panoche_1"
+
+Mojave_4 <- read_delim("gbif_csv/Mojave_4.csv", 
+delim = "\t", escape_double = FALSE, 
+trim_ws = TRUE)
+Mojave_4$site<-"Mojave_4"
+
+Panoche_3 <- read_delim("gbif_csv/Panoche_3.csv", 
+delim = "\t", escape_double = FALSE, 
+trim_ws = TRUE)
+Panoche_3$site<-"Panoche_3"
+
+Semitropic <- read_delim("gbif_csv/Semitropic.csv", 
+delim = "\t", escape_double = FALSE, 
+trim_ws = TRUE)
+Semitropic$site<-"Semitropic"
+
+Sunset_1 <- read_delim("gbif_csv/Sunset_1.csv", 
+delim = "\t", escape_double = FALSE, 
+trim_ws = TRUE)
+Sunset_1$site<-"Sunset_1"
+
+Tejon_ERG <- read_delim("gbif_csv/Tejon_ERG.csv", 
+delim = "\t", escape_double = FALSE, 
+trim_ws = TRUE)
+Tejon_ERG$site<-"Tejon_ERG"
+
+gbif_new<-rbind(Carrizo_1,Carrizo_3,Carrizo_4,Carrizo_5,Carrizo_6,Carrizo_soda_shrubs,Cuyama_3,Mojave_4,Panoche_1,Panoche_3,Semitropic,Sunset_1,Tejon_ERG)
+
+st_area(gbif_new)
+
+```
+
+```{r}
+gbif_new<-gbif_new %>% drop_na(individualCount)
+
+#if individual count >1
+expanded <- data.frame(gbif_new[rep(seq_len(dim(gbif_new)[1]),  with(gbif_new, ifelse(individualCount > 0 & !is.na(individualCount), individualCount, 1))
+), , drop = FALSE], row.names=NULL)
+
+expanded$individualCount<-1
+
+expanded<-rename(expanded,lat=decimalLatitude)
+expanded<-rename(expanded,long=decimalLongitude)
+expanded<-rename(expanded,site_code=site)
+expanded$rep<-1:nrow(expanded)
+expanded <- expanded[colnames(expanded)[c(52,1:51)]]
+
+site_names<-expanded%>%
+  group_by(site_code)%>%
+  summarise()
+
+write.csv(expanded, file = "GBIF data.csv")
+saveRDS(expanded, file = "site_gbif.rds")
+
+```
+

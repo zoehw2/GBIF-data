@@ -33,69 +33,97 @@ mean(st_area(polygons))#10km^2 should be bigger than 0.27km^2
 
 ```
 
+for prog report- 30 initial sites (21 w shrubs)
 ```{r}
-bar<-bbox2wkt(
--117.4696,
-35.00635,
--117.3455,
-35.10892)
+prog_polys<-polygons%>%
+  dplyr::filter(Name %in% (c("Avenal","Barstow_1","Barstow_2","Carrizo_1","Carrizo_2","Carrizo_3","Carrizo_4","Carrizo_6","Coalinga","Cuyama_1","Cuyama_2","Cuyama_3","Cuyama_4","Cuyama_5","Cuyama_6","HeartofMojave","Lokern","Mojave_1","Mojave_2","Mojave_3","Mojave_4","Mojave_5","Panoche_1","Panoche_2","Panoche_3","Panoche_silvercreek","Semitropic","Sheephole","Tejon_ERG","Tecopa"
+                )))
 
-carr<-bbox2wkt(-119.7679,
-35.13229,
--119.6434,
-35.23473)
-  
-coal<-bbox2wkt(
-  -120.3666,
-36.16194,
--120.2405,
-36.26453)
-
-cuy<-bbox2wkt(-119.6811,
-34.89593,
--119.5572,
-34.99847)
-  
-lok<-bbox2wkt(-119.6463,
-35.30242,
--119.5216,
-35.40508)
-  
-mjv<-bbox2wkt(-115.8832,
-34.93301,
--115.7590,
-35.03560)
-  
-pan<-bbox2wkt(-120.8391,
-36.62221,
--120.7120,
-36.72470)
-  
-sj<-bbox2wkt(-119.4977,
-35.48213,
--119.3722,
-35.58472)
-  
-tec<-bbox2wkt(-116.2467,
-35.80119,
--116.1212,
-35.90377)
-
-buffered_wkts_prog<-rbind(bar,carr,coal,cuy,lok,mjv,pan,sj,tec)
 ```
 
 ```{r}
-library(wellknown)
-library(spocc)
+points_centroids_prog<-st_centroid(prog_polys)
 
-x = 4326 #crs for first spatial df
-y = 4326 #crs for second spatial df
+```
+
+ignore code fragments here
+regional for prog
+```{r}
 #293.161m is radius of avg area
 #adding a 100km buffer 
 #343.1831m is radius of buffered points
 z = 5630 #buffer is in m
 
 #data, read in, set as sf, list projection####
+
+
+#buffered_regional_centroids_prog<-st_buffer(regional_centroids_prog, z)
+
+regional_centroids_prog<-st_as_sf(regional_centroids_prog)
+
+test <- mapply(function(x) st_point((x)),regional_centroids_prog$x,SIMPLIFY = FALSE)
+
+
+#trying squares
+
+#make recursive eventually
+bboxes_prog = cbind(st_sf(geometry=buffered_regional_centroids_prog$geometry),do.call(rbind,lapply(buffered_regional_centroids_prog$geometry, st_bbox)))
+
+st_area(bboxes_prog$geometry)
+st_area(polygons$geometry)
+
+
+wkts<-mapply( buffered_regional_centroids_prog, FUN=st_as_text)%>%
+  st_as_sf()
+
+df<-as.data.frame(wkts)
+plot_sf(df)
+st_area(df$x)
+
+fun<-function(st_as_text)
+st_as_text(buffered_regional_centroids_prog)
+
+wkts=
+  cbind(minx=xmin, miny=ymin, maxx=xmax,maxy=ymax)do.call(rbind,lapply(bboxes, bbox2wkt))
+```
+
+code for square sites
+```{r}
+points_centroids_prog$region<-c("San Joaquin","Barstow","Barstow","Carrizo","Carrizo","Carrizo","Carrizo","Carrizo","Coalinga","Cuyama","Cuyama","Cuyama","Cuyama","Cuyama","Cuyama","Heartofmojave","Lokern", "Mojave","Mojave","Mojave","Mojave","Mojave" ,"Panoche","Panoche","Panoche","Panoche","San Joaquin","Sheephole","Tecopa","San Joaquin")
+
+regional_centroids_prog<-points_centroids_prog%>%
+  group_by(region)%>%
+  summarise(geometry=st_union(geometry))%>%
+  st_centroid(geometry)%>%
+  st_make_valid()
+
+plot(regional_centroids_prog)
+
+#trying a thing
+mojave_sites<-expanded_sites%>%
+  group_by(site_code)%>%
+  subset(site_code == c( "Sheephole","Heartofmojave","Mojave_1","Mojave_2","Mojave_3","Mojave_4","Mojave_5"))
+
+mojave_birds<-mojave_sites%>%
+  group_by(site_code)%>%
+  summarise(n=n())
+
+#try throwing coords for the six sites into gbif, see if any overlap/are near, and use that as a centroid
+#mojave 1-5 near each other, sheephole and HoM far
+
+#st_combine yields same results as st_union
+regional_centroids_prog_2<-points_centroids_prog%>%
+  group_by(region)%>%
+  summarise(geometry=st_combine(geometry))%>%
+  st_centroid(geometry)%>%
+  st_make_valid()
+
+library(wellknown)
+library(spocc)
+library(buffeRs)
+
+x = 4326 #crs for first spatial df
+
 buffered_regional_centroids_prog <- regional_centroids_prog %>% 
   st_as_sf(coords=c("long","lat"), crs = x, remove=FALSE) %>% 
   st_transform(32610)%>%
@@ -103,72 +131,105 @@ buffered_regional_centroids_prog <- regional_centroids_prog %>%
 
 #create buffer for point data
 
-buffered_regional_centroids_prog<-st_buffer(regional_centroids_prog, z)%>%
-  st_transform(4326)%>%
-  st_make_valid()
+#regional_centroids_prog<-st_as_sf(regional_centroids_prog)
 
-plot(buffered_regional_centroids_prog)
-
-st_area(buffered_regional_centroids_prog)
-
-plot_sf(buffered_regional_centroids_prog)
+#change projection to meters before running
 ```
 
-loop would be faster but for now this
 ```{r}
 
+bar = sf::st_point(c(1010236.58888633, 3893762.96328113))
+bar = sf::st_sfc(bar)
+bar = sf::st_sf(bar)
+bar<-buffer_square(bar,10000,0)
+st_area(bar)
+bar<-bar%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
 
-bar<-bbox2wkt(
--117.4696,
-35.00635,
--117.3455,
-35.10892)
+carr = sf::st_point(c(800005.343531313, 3898368.11138416))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(10000,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
 
-carr<-bbox2wkt(-119.7679,
-35.13229,
--119.6434,
-35.23473)
-  
-coal<-bbox2wkt(
-  -120.3666,
-36.16194,
--120.2405,
-36.26453)
+st_area(carr)
 
-cuy<-bbox2wkt(-119.6811,
-34.89593,
--119.5572,
-34.99847)
-  
-lok<-bbox2wkt(-119.6463,
-35.30242,
--119.5216,
-35.40508)
-  
-mjv<-bbox2wkt(-115.8832,
-34.93301,
--115.7590,
-35.03560)
-  
-pan<-bbox2wkt(-120.8391,
-36.62221,
--120.7120,
-36.72470)
-  
-sj<-bbox2wkt(-119.4977,
-35.48213,
--119.3722,
-35.58472)
-  
-tec<-bbox2wkt(-116.2467,
-35.80119,
--116.1212,
-35.90377)
+coal = sf::st_point(c(742418.338156988, 4010965.2577555))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(10000,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
 
-buffered_wkts_prog<-rbind(bar,carr,coal,cuy,lok,mjv,pan,sj,tec)
+cuy = sf::st_point(c(808757.762586225, 3872412.85095825))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(10000,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+lok = sf::st_point(c(810421.95871811, 3917631.70982213))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(10000,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+mjv = sf::st_point(c(1149642.43797103, 3918302.18948119))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(10000,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert()
+
+pan = sf::st_point(c(698801.049981245, 4060946.99265288))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(10000,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+  
+sj = sf::st_point(c(823247.321006813, 3938053.76677432))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(10000,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+tec = sf::st_point(c(1115892.95312855, 3989096.65328527))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(10000,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+  
+st_area(tec)
+
+regional_wkts_prog<-rbind(bar,carr,coal,cuy,lok,mjv,pan,sj,tec)
 
 ```
 
+#looks like there was an issue converting between circular buffers and square boundingboxes
 redoing pull for buffered centroids
 do this off good wifi
 ```{r}
@@ -182,7 +243,7 @@ pwd <- "foxhunter"
 #aves taxon key is 212
 
 #not sure if there's a better workaround
-for (i in buffered_wkts_prog[1:3]){
+for (i in regional_wkts_prog[1:3]){
   
 occ_download(
   pred_within(i),
@@ -193,7 +254,7 @@ occ_download(
 )
 }
 
-for (i in buffered_wkts_prog[4:6]){
+for (i in regional_wkts_prog[4:6]){
   
 occ_download(
   pred_within(i),
@@ -204,7 +265,28 @@ occ_download(
 )
 }
 
-for (i in buffered_wkts_prog[7:9]){
+for (i in regional_wkts_prog[7:9]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+
+library(wicket)
+validate_wkt(wkts)
+wkts<-wkt_reverse(wkts)
+wkts<-wkt_correct(wkts)
+
+
+plot_sf(wkts)
+
+#rerunning for mojave
+for (i in regional_wkts_prog[6]){
   
 occ_download(
   pred_within(i),
@@ -217,76 +299,8 @@ occ_download(
 
 ```
 
-for prog report- regions buffered (oops flipped)
 ```{r}
-library(rgbif)
-library(spocc)
-
-user<- "zoehw2"
-email <- "zoe.hillier.weltman@gmail.com"
-pwd <- "foxhunter"
-
-#aves taxon key is 212
-
-#not sure if there's a better workaround
-for (i in buffered_wkts[1:3]){
-  
-occ_download(
-  pred_within(i),
-  pred_in("taxonKey", 212),
-  pred("hasCoordinate", T),
-  format = "SIMPLE_CSV",
-  user=user,pwd=pwd,email=email
-)
-}
-
-for (i in buffered_wkts[4:6]){
-  
-occ_download(
-  pred_within(i),
-  pred_in("taxonKey", 212),
-  pred("hasCoordinate", T),
-  format = "SIMPLE_CSV",
-  user=user,pwd=pwd,email=email
-)
-}
-
-for (i in buffered_wkts[7:9]){
-  
-occ_download(
-  pred_within(i),
-  pred_in("taxonKey", 212),
-  pred("hasCoordinate", T),
-  format = "SIMPLE_CSV",
-  user=user,pwd=pwd,email=email
-)
-}
-
-for (i in buffered_wkts[10:12]){
-  
-occ_download(
-  pred_within(i),
-  pred_in("taxonKey", 212),
-  pred("hasCoordinate", T),
-  format = "SIMPLE_CSV",
-  user=user,pwd=pwd,email=email
-)
-}
-
-for (i in buffered_wkts[13]){
-  
-occ_download(
-  pred_within(i),
-  pred_in("taxonKey", 212),
-  pred("hasCoordinate", T),
-  format = "SIMPLE_CSV",
-  user=user,pwd=pwd,email=email
-)
-}
-```
-
-```{r}
-data_path_2 <- "regions"
+data_path_2 <- "region"
 
 read_csv = function(f){
  s = read_csv(f)
@@ -297,47 +311,52 @@ read_csv = function(f){
 #gbif_buffered<-do.call(rbind, lapply(gbif_read, read_csv))
 
 library(readr)
-Carrizo_r <- read_delim("regions/carrizo.csv", 
+Carrizo_r <- read_delim("region/carrizo.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Carrizo_r$region<-"Carrizo"
 
-Cuyama_r <- read_delim("regions/cuyama.csv", 
+Cuyama_r <- read_delim("region/cuyama.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Cuyama_r$region<-"Cuyama"
 
-Panoche_r <- read_delim("regions/panoche.csv", 
+Panoche_r <- read_delim("region/panoche.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Panoche_r$region<-"Panoche"
 
-Barstow_r <- read_delim("regions/barstow.csv", 
+Barstow_r <- read_delim("region/barstow.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Barstow_r$region<-"Barstow"
 
-Coalinga_r <- read_delim("regions/coalinga.csv", 
+Coalinga_r <- read_delim("region/coal.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Coalinga_r$region<-"Coalinga"
 
-Lokern_r <- read_delim("regions/lokern.csv", 
+Lokern_r <- read_delim("region/lokern.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Lokern_r$region<-"Lokern"
 
-SanJoaquin_r <- read_delim("regions/san joaquin.csv", 
+SanJoaquin_r <- read_delim("region/sj.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 SanJoaquin_r$region<-"San Joaquin"
 
-Tecopa_r <- read_delim("regions/tecopa.csv", 
+Tecopa_r <- read_delim("region/tecopa.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Tecopa_r$region<-"Tecopa"
 
-regional_gbif<-rbind(Carrizo_r,Cuyama_r,Panoche_r, Tecopa_r,SanJoaquin_r,Lokern_r,Coalinga_r,Barstow_r)
+Mojave_r <- read_delim("region/mojave.csv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+Mojave_r$region<-"Mojave"
+
+regional_gbif<-rbind(Carrizo_r,Cuyama_r,Panoche_r, Tecopa_r,SanJoaquin_r,Lokern_r,Coalinga_r,Barstow_r,Mojave_r)
 
 ```
 
@@ -354,7 +373,21 @@ expanded_regions$individualCount<-1
 
 expanded_regions<-rename(expanded_regions,lat=decimalLatitude)
 expanded_regions<-rename(expanded_regions,long=decimalLongitude)
+expanded_regions$rep<-1:nrow(expanded_regions)
+
+expanded_regions<-expanded_regions[colnames(expanded_regions)[c(52,1:51)]]
+ 
+region_names<-expanded_regions%>%
+  group_by(region)%>%
+  summarise()
 
 write.csv(expanded_regions, file = "region_gbif.csv")
+saveRDS(expanded_regions, file = "region_gbif.rds")
+region_gbif<-readRDS('region_gbif.rds')
+```
+
+spinning up some mojave data (mojave, kelso,sheephole, heartofmojave)
+```{r}
+
 ```
 

@@ -50,13 +50,10 @@ polygons$area <- st_area(polygons) #Take care of units
 ```{r}
 library(wellknown)
 library(spocc)
+library(buffeRs)
 points_centroids<-st_centroid(prog_polys)
 
-crsuggest::suggest_crs(polygons, type = "projected", units='m')
-
 x = 4326 #crs for first spatial df
-y = 4326 #crs for second spatial df
-z = 1800 #set buffer is using a join to point data 
 #10km^2 for area for buffered sites
 
 #data, read in, set as sf, list projection####
@@ -65,184 +62,289 @@ centroids <- points_centroids %>%
   st_transform(32610)%>%
   st_make_valid()#crs = 32610 is UTM and will return distances in meters
 
-#create buffer for point data
-
-buffered_centroids<-st_buffer(centroids, z)%>%
-  st_transform(4326)%>%
-  st_make_valid()
-
-st_is_valid(buffered_centroids)
-
-st_geometry_type(buffered_centroids)
-
-st_coordinates(buffered_centroids)
-
-st_area(buffered_centroids)
-
-plot(buffered_centroids)
-
-st_bbox(buffered_centroids)#a way to run for each element of the list?
-
-bboxes_buffered_sites = cbind(st_sf(geometry=buffered_centroids$geometry),do.call(rbind,lapply(buffered_centroids$geometry, st_bbox)))
-
-centroid_wkts<-st_as_text(buffered_centroids$geometry)#yielding too many points? invalid shape for gbif
 ```
 
 copy-paste the 30 buffered sites since iteration not yet working
 ```{r}
-ave<-bbox2wkt(
--120.1216,
-36.04542,
--120.0817,
-36.07784)
+ave = sf::st_point(c(761052.797999445, 3994672.67159508))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
 
-bar1<-bbox2wkt(-116.8542,
-35.07644,
--116.8149,
-35.10877)
+st_area(ave)
+
+bar1 = sf::st_point(c(1062342.88500539, 3900746.85342364))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+st_area(carr)
+
+bar2 = sf::st_point(c(958163.878846229, 3886789.60811268))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+car1 = sf::st_point(c(798199.200708459, 3900375.67244386))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+car2 = sf::st_point(c(799332.001523994, 3899358.7450804))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+car3 = sf::st_point(c(802755.396426991, 3896349.55239856))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+car4 = sf::st_point(c(807920.807191618, 3891248.71057087))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
   
-bar2<-bbox2wkt(
--117.9998,
-35.00375,
--117.9604,
-35.03613)
+car6 = sf::st_point(c(791819.390072172, 3904507.1129823))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
 
-car1<-bbox2wkt(-119.7444,
-35.18592,
--119.7049,
-35.21834)
+coal = sf::st_point(c(742418.340269413, 4010965.26229504))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+cuy1 = sf::st_point(c(821512.725205021, 3861921.83967465))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+cuy2 = sf::st_point(c(821212.832738582, 3862400.31508178))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+cuy3 = sf::st_point(c(821443.940153515, 3871872.32605763))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+cuy4 = sf::st_point(c(821485.125033712, 3872838.75317886))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+cuy5 = sf::st_point(c(783763.411643091, 3882551.09282527))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+cuy6 = sf::st_point(c(783133.59718452, 3882887.77652211))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+hom = sf::st_point(c(1170687.69075316, 3863937.88019742))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+lok = sf::st_point(c(810421.963184896, 3917631.71201444))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+moj1 = sf::st_point(c(1132999.20638878, 3923622.19822479))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+moj2 = sf::st_point(c(1144423.11243581, 3923725.60265459))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+moj3 = sf::st_point(c(1150560.42677661, 3916827.91002961))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+moj4 = sf::st_point(c(1157281.89900324, 3913999.96584649))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+moj5 = sf::st_point(c(1162950.89096981, 3913332.01494015))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+pan1 = sf::st_point(c(696509.188076656, 4063725.48583983))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+pan2 = sf::st_point(c(695891.752914405, 4064372.25008394))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+pan3 = sf::st_point(c(695763.670426077, 4064156.55005868))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+pansl = sf::st_point(c(707039.464984836, 4051533.2702302))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+semi = sf::st_point(c(806660.672891432, 3951300.60690333))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+sheep= sf::st_point(c(1171450.01712319, 3809018.69261025))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+tec = sf::st_point(c(1115892.95183313, 3989096.65725961))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
+
+plot(tec)
+
+tej = sf::st_point(c(902033.825842286, 3868120.02721386))%>%
+  st_sfc()%>%
+  st_sf()%>%
+  buffer_square(3200,0)%>%
+  st_as_sf(crs=32610)%>%
+  st_transform(4326)%>%
+  st_make_valid()%>%
+  sf_convert(group=F)
   
-car2<-bbox2wkt(-119.7323,
-35.17643,
--119.6928,
-35.20885)
-  
-car3<-bbox2wkt(-119.6959,
-35.14832,
--119.6564,
-35.18074)
-  
-car4<-bbox2wkt(-119.6412,
-35.10083,
--119.6017,
-35.13325)
-  
-car6<-bbox2wkt(-119.8129,
-35.22499,
--119.7734,
-35.25741)
-  
-coal<-bbox2wkt(-120.3233,
-36.19697,
--120.2833,
-36.22939)
+st_area(tec)
 
-cuy1<-bbox2wkt(-119.5035,
-34.83263,
--119.4642,
-34.86505)
-
-cuy2<-bbox2wkt(-119.5066,
-34.83704,
--119.4673,
-34.86945)
-
-cuy3<-bbox2wkt(-119.5005,
-34.92222,
--119.4611,
-34.95463)
-
-cuy4<-bbox2wkt(-119.4997,
-34.93090,
--119.4603,
-34.96332)
-
-cuy5<-bbox2wkt(-119.9088,
-35.02961,
--119.8694,
-35.06204)
-
-cuy6<-bbox2wkt(-119.9156,
-35.03282,
--119.8762,
-35.06525)
-
-hom<-bbox2wkt(-115.7036,
-34.68124,
--115.6645,
-34.71352)
-
-lok<-bbox2wkt(-119.6039,
-35.33754,
--119.5643,
-35.36996)
-
-mj1<-bbox2wkt(-116.0669,
-35.23945,
--116.0275,
-35.27174)
-
-mj2<-bbox2wkt(-115.9421,
-35.23312,
--115.9028,
-35.26541)
-
-mj3<-bbox2wkt(-115.8806,
-35.16745,
--115.8413,
-35.19974)
-
-mj4<-bbox2wkt(-115.8096,
-35.13779,
--115.7703,
-35.17007)
-
-mj5<-bbox2wkt(-115.7484,
-35.12811,
--115.7091,
-35.16039)
-
-pan1<-bbox2wkt(-120.8204,
-36.68268,
--120.7801,
-36.71511)
-
-pan2<-bbox2wkt(-120.8271,
-36.68863,
--120.7868,
-36.72106)
-
-pan3<-bbox2wkt(-120.8286,
-36.68672,
--120.7883,
-36.71915)
-
-pansl<-bbox2wkt(-120.7058,
-36.57062,
--120.6656,
-36.60305)
-
-semi<-bbox2wkt(-119.6326,
-35.64176,
--119.5928,
-35.67417)
-
-sh<-bbox2wkt(-115.7382,
-34.18949,
--115.6993,
-34.22178)
-
-tec<-bbox2wkt(-116.2040,
-35.83628,
--116.1644,
-35.86859)
-
-tej<-bbox2wkt(-118.6220,
-34.85976,
--118.5827,
-34.89216)
-
-buffered_wkts_prog<-rbind(ave,bar1,bar2,car1,car2,car3,car4,car6,coal,cuy1,cuy2,cuy3,cuy4,cuy5,cuy6,hom,lok,mj1,mj2,mj3,mj4,mj5,pan1,pan2,pan3,pansl,semi,sh,tec,tej)
+buffered_wkts_prog<-rbind(ave,bar1,bar2,car1,car2,car3,car4,car6,coal,cuy1,cuy2,cuy3,cuy4,cuy5,cuy6,hom,lok,moj1,moj2,moj3,moj4,moj5,pan1,pan2,pan3,pansl,semi,sheep,tec,tej)
 
 ```
 
@@ -368,11 +470,35 @@ occ_download(
 )
 }
 
+#double checking barstow and coalinga
+
+for (i in buffered_wkts_prog[2]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
+for (i in buffered_wkts_prog[9]){
+  
+occ_download(
+  pred_within(i),
+  pred_in("taxonKey", 212),
+  pred("hasCoordinate", T),
+  format = "SIMPLE_CSV",
+  user=user,pwd=pwd,email=email
+)
+}
+
 ```
 
 and now for the buffered sites
 ```{r}
-data_path_3 <- "gbif_sites_buffered"
+data_path_3 <- "gbif_sites_square"
 
 read_csv = function(f){
  s = read_csv(f)
@@ -383,147 +509,147 @@ read_csv = function(f){
 #gbif_buffered<-do.call(rbind, lapply(gbif_read, read_csv))
 
 library(readr)
-Avenal <- read_delim("gbif_sites_buffered/avenal.csv", 
+Avenal <- read_delim("gbif_sites_square/avenal.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Avenal$site<-"Avenal"
 
-Barstow_2 <- read_delim("gbif_sites_buffered/bar2.csv", 
+Barstow_2 <- read_delim("gbif_sites_square/bar2.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Barstow_2$site<-"Barstow_2"
 
-Carrizo_1 <- read_delim("gbif_sites_buffered/car1.csv", 
+Carrizo_1 <- read_delim("gbif_sites_square/car1.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Carrizo_1$site<-"Carrizo_1"
 
-Carrizo_2 <- read_delim("gbif_sites_buffered/car2.csv", 
+Carrizo_2 <- read_delim("gbif_sites_square/car2.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Carrizo_2$site<-"Carrizo_2"
 
-Carrizo_3 <- read_delim("gbif_sites_buffered/car3.csv", 
+Carrizo_3 <- read_delim("gbif_sites_square/car3.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Carrizo_3$site<-"Carrizo_3"
 
-Carrizo_4 <- read_delim("gbif_sites_buffered/car4.csv", 
+Carrizo_4 <- read_delim("gbif_sites_square/car4.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Carrizo_4$site<-"Carrizo_4"
 
-Carrizo_6 <- read_delim("gbif_sites_buffered/car6.csv", 
+Carrizo_6 <- read_delim("gbif_sites_square/car6.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Carrizo_6$site<-"Carrizo_6"
 
-Cuyama_1 <- read_delim("gbif_sites_buffered/cuy1.csv", 
+Cuyama_1 <- read_delim("gbif_sites_square/cuy1.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Cuyama_1$site<-"Cuyama_1"
 
-Cuyama_2 <- read_delim("gbif_sites_buffered/cuy2.csv", 
+Cuyama_2 <- read_delim("gbif_sites_square/cuy2.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Cuyama_2$site<-"Cuyama_2"
 
-Cuyama_3 <- read_delim("gbif_sites_buffered/cuy3.csv", 
+Cuyama_3 <- read_delim("gbif_sites_square/cuy3.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Cuyama_3$site<-"Cuyama_3"
 
-Cuyama_4 <- read_delim("gbif_sites_buffered/cuy4.csv", 
+Cuyama_4 <- read_delim("gbif_sites_square/cuy4.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Cuyama_4$site<-"Cuyama_4"
 
-Cuyama_5 <- read_delim("gbif_sites_buffered/cuy5.csv", 
+Cuyama_5 <- read_delim("gbif_sites_square/cuy5.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Cuyama_5$site<-"Cuyama_5"
 
-Cuyama_6 <- read_delim("gbif_sites_buffered/cuy6.csv", 
+Cuyama_6 <- read_delim("gbif_sites_square/cuy6.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Cuyama_6$site<-"Cuyama_6"
 
-HeartofMojave <- read_delim("gbif_sites_buffered/hom.csv", 
+Heartofmojave <- read_delim("gbif_sites_square/hom.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
-HeartofMojave$site<-"HeartofMojave"
+Heartofmojave$site<-"Heartofmojave"
 
-Lokern <- read_delim("gbif_sites_buffered/lok.csv", 
+Lokern <- read_delim("gbif_sites_square/lok.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Lokern$site<-"Lokern"
 
-Mojave_1 <- read_delim("gbif_sites_buffered/mj1.csv", 
+Mojave_1 <- read_delim("gbif_sites_square/mjv1.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Mojave_1$site<-"Mojave_1"
 
-Mojave_2 <- read_delim("gbif_sites_buffered/mj2.csv", 
+Mojave_2 <- read_delim("gbif_sites_square/mjv2.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Mojave_2$site<-"Mojave_2"
 
-Mojave_3 <- read_delim("gbif_sites_buffered/mj3.csv", 
+Mojave_3 <- read_delim("gbif_sites_square/mjv3.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Mojave_3$site<-"Mojave_3"
 
-Mojave_4 <- read_delim("gbif_sites_buffered/mj4.csv", 
+Mojave_4 <- read_delim("gbif_sites_square/mjv4.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Mojave_4$site<-"Mojave_4"
 
-Mojave_5 <- read_delim("gbif_sites_buffered/mj5.csv", 
+Mojave_5 <- read_delim("gbif_sites_square/mjv5.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Mojave_5$site<-"Mojave_5"
 
-Panoche_1 <- read_delim("gbif_sites_buffered/pan1.csv", 
+Panoche_1 <- read_delim("gbif_sites_square/pan1.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Panoche_1$site<-"Panoche_1"
 
-Panoche_2 <- read_delim("gbif_sites_buffered/pano2.csv", 
+Panoche_2 <- read_delim("gbif_sites_square/pan2.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Panoche_2$site<-"Panoche_2"
 
-Panoche_3 <- read_delim("gbif_sites_buffered/pan3.csv", 
+Panoche_3 <- read_delim("gbif_sites_square/pan3.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Panoche_3$site<-"Panoche_3"
 
-Panoche_sl <- read_delim("gbif_sites_buffered/pansl.csv", 
+Panoche_silvercreek <- read_delim("gbif_sites_square/pansl.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
-Panoche_sl$site<-"Panoche_sl"
+Panoche_silvercreek$site<-"Panoche_silvercreek"
 
-Semitropic <- read_delim("gbif_sites_buffered/semit.csv", 
+Semitropic <- read_delim("gbif_sites_square/semitropic.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Semitropic$site<-"Semitropic"
 
-Sheephole <- read_delim("gbif_sites_buffered/sheep.csv", 
+Sheephole <- read_delim("gbif_sites_square/sheephole.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Sheephole$site<-"Sheephole"
 
-Tejon <- read_delim("gbif_sites_buffered/tej.csv", 
+Tejon_ERG <- read_delim("gbif_sites_square/tejon.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
-Tejon$site<-"Tejon"
+Tejon_ERG$site<-"Tejon_ERG"
 
-Tecopa <- read_delim("gbif_sites_buffered/tec.csv", 
+Tecopa <- read_delim("gbif_sites_square/tecopa.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
 Tecopa$site<-"Tecopa"
 
-gbif_sites_buffered<-rbind(Avenal,Barstow_2,Carrizo_1,Carrizo_2,Carrizo_3,Carrizo_4,Carrizo_6,Cuyama_1,Cuyama_2,Cuyama_3,Cuyama_4,Cuyama_5,Cuyama_6,HeartofMojave,Lokern,Mojave_1,Mojave_2,Mojave_3,Mojave_4,Mojave_5,Panoche_1,Panoche_2,Panoche_3,Panoche_sl,Semitropic,Sheephole,Tecopa,Tejon)
+gbif_sites_buffered<-rbind(Avenal,Barstow_2,Carrizo_1,Carrizo_2,Carrizo_3,Carrizo_4,Carrizo_6,Cuyama_1,Cuyama_2,Cuyama_3,Cuyama_4,Cuyama_5,Cuyama_6,Heartofmojave,Lokern,Mojave_1,Mojave_2,Mojave_3,Mojave_4,Mojave_5,Panoche_1,Panoche_2,Panoche_3,Panoche_silvercreek,Semitropic,Sheephole,Tecopa,Tejon_ERG)
 ```
 
 filter out nas, create new rows for individualcount>1
@@ -531,9 +657,9 @@ filter out nas, create new rows for individualcount>1
 #if individual count = na
 gbif_sites_buffered<-gbif_sites_buffered %>% drop_na(individualCount)
 
-gbif_buffered_uniques<-gbif_sites_buffered%>%distinct(gbifID, .keep_all = TRUE)
+#gbif_buffered<-gbif_sites_buffered%>%distinct(gbifID, .keep_all = TRUE)
 
-expanded_buffered_uniques<- data.frame(gbif_buffered_uniques[rep(seq_len(dim(gbif_buffered_uniques)[1]),  with(gbif_buffered_uniques, ifelse(individualCount > 0 & !is.na(individualCount), individualCount, 1))
+expanded_sites<- data.frame(gbif_buffered_uniques[rep(seq_len(dim(gbif_buffered_uniques)[1]),  with(gbif_buffered_uniques, ifelse(individualCount > 0 & !is.na(individualCount), individualCount, 1))
 ), , drop = FALSE], row.names=NULL)
 
 expanded_buffered_uniques$individualCount<-1
@@ -541,19 +667,32 @@ expanded_buffered_uniques$individualCount<-1
 expanded_buffered_uniques<-rename(expanded_buffered_uniques,lat=decimalLatitude)
 expanded_buffered_uniques<-rename(expanded_buffered_uniques,long=decimalLongitude)
 expanded_buffered_uniques<-rename(expanded_buffered_uniques,site_code=site)
+expanded_buffered_uniques$rep<-1:nrow(expanded_buffered_uniques)
+expanded_buffered_uniques <- expanded_buffered_uniques[colnames(expanded_buffered_uniques)[c(52,1:51)]]
 
 #if individual count >1
 expanded_sites <- data.frame(gbif_sites_buffered[rep(seq_len(dim(gbif_sites_buffered)[1]),  with(gbif_sites_buffered, ifelse(individualCount > 0 & !is.na(individualCount), individualCount, 1))
 ), , drop = FALSE], row.names=NULL)
 
 expanded_sites$individualCount<-1
+expanded_sites$rep<-1:nrow(expanded_sites)
+expanded_sites <- expanded_sites[colnames(expanded_sites)[c(52,1:51)]]
 
 expanded_sites<-rename(expanded_sites,lat=decimalLatitude)
 expanded_sites<-rename(expanded_sites,long=decimalLongitude)
 expanded_sites<-rename(expanded_sites,site_code=site)
 #there are duplicates due to overlap
 
-write.csv(expanded_sites, file = "buffer_gbif.csv")
+#renaming site codes to match regional file
 
-write.csv(expanded_buffered_uniques, file = "buffer_gbif.csv")
+site_names<-expanded_sites%>%
+  group_by(site_code)%>%
+  summarise()
+
+
+#write.csv(expanded_sites, file = "buffer_gbif.csv")
+
+write.csv(expanded_sites, file = "buffer_gbif.csv")
+saveRDS(expanded_sites, file = "buffered_site_gbif.rds")
+readRDS("buffered_site_gbif.rds")
 ```
