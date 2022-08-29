@@ -5,6 +5,7 @@ date: "23/08/2022"
 output:
   pdf_document: default
   html_document: default
+  github_document: default
 ---
 ```{r, echo=FALSE}
 library(ggplot2)
@@ -13,6 +14,10 @@ library(tidyverse)
 library(scales)
 library(sf)
 library(units)
+library(dplyr)
+library(raster)
+library(spData)
+library(tmap) 
 ```
 
 load files
@@ -78,43 +83,156 @@ read_zip = function(f){
 }
 polygons_read <- as.list(dir(data_path, pattern="*.kml", full.names=T)) 
 polygons<-do.call(rbind, lapply(polygons_read, read_zip))
+
+prog_polys<-polygons%>%
+  dplyr::filter(Name %in% (c("Avenal","Barstow_1","Barstow_2","Carrizo_1","Carrizo_2","Carrizo_3","Carrizo_4","Carrizo_6","Coalinga","Cuyama_1","Cuyama_2","Cuyama_3","Cuyama_4","Cuyama_5","Cuyama_6","HeartofMojave","Lokern","Mojave_1","Mojave_2","Mojave_3","Mojave_4","Mojave_5","Panoche_1","Panoche_2","Panoche_3","Panoche_silvercreek","Semitropic","Sheephole","Tejon_ERG","Tecopa"
+                )))
 ```
 
 birds/scales for top ten species of the three scales
 ```{r,echo=F, echo=FALSE}
 #note that expanded is original sites, expanded_sites is buffered sites, expanded_regions is regions
 
-birds_species<-aggregate(individualCount ~species, expanded, sum)
-birds_species$scale<-('original sites')
+birds_species_2<-expanded_sites%>%
+  group_by(month, individualCount, site_code,species)%>%
+  summarise(individualCount=n())%>%
+    mutate(season = case_when(
+    month >= 3 & month <9 ~ "Summer",
+    month < 3  ~ "Winter",
+    month >= 9 ~ "Winter"
+    ))%>%
+  aggregate(individualCount ~season+species, sum)
 
-birds_species_2<-aggregate(individualCount ~species, expanded_sites, sum)
-birds_species_2$scale<-('buffered sites')
-birds_species_regions<-aggregate(individualCount ~species, expanded_regions, sum)
-birds_species_regions$scale<-('regions')
-
-topten_1<-birds_species%>%group_by(species,scale)%>%
-    arrange(desc(individualCount)) 
-topten_1 <- topten_1[1:10,]
-
-topten_2<-birds_species_2%>%group_by(species,scale)%>%
+topten_winter<-birds_species_2%>%group_by(species,season)%>%
+  filter(season=="Winter")%>%
     arrange(desc(individualCount))
-topten_2 <- topten_2[1:10,]
+topten_winter <- topten_winter[1:10,]
 
-topten_3<-birds_species_regions%>%group_by(species,scale)%>%
-    arrange(desc(individualCount)) 
-topten_3 <- topten_3[1:10,]
+topten_summer<-birds_species_2%>%group_by(species,season)%>%
+  filter(season=="Summer")%>%
+    arrange(desc(individualCount))
+topten_summer <- topten_summer[1:10,]
 
-birds_species_all<-full_join(topten_1,topten_2)
-birds_species_all<-full_join(birds_species_all,topten_3)
+birds_species_seasons<-full_join(topten_summer,topten_winter)
 
-ggplot(birds_species_all, aes(fill=scale, y=individualCount, x=species))+
+
+#remove scale as a factor and add season
+
+ggplot(birds_species_seasons, aes(fill=season, y=individualCount, x=species))+
 geom_bar(position='dodge', stat='identity')+
   theme_classic()+
     xlab("Species")+
   ylab("Number of bird observations")+ 
+  coord_cartesian(expand=F)+
   scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 10))+
-    theme(axis.text.x = element_text(size = 8, angle = 45, hjust = 1))
+    theme(axis.text.x = element_text(size = 6, angle = 45, hjust = 1))
 ```
+Why is your bird variable the number of bird observations per site?   E.g. cumulative number of time….?
+
+How many sites have bird observations?  
+
+
+Mean number of birds per site, per season, per year?    Variance in abundance across sites?  
+```{r}
+expanded_sites%>%
+  group_by(site_code)%>%
+  summarise()
+
+birds_sites_seasons_year<-expanded_sites%>%
+  group_by(month, individualCount, site_code,year)%>%
+  summarise(individualCount=n())%>%
+    mutate(season = case_when(
+    month >= 3 & month <9 ~ "Summer",
+    month < 3  ~ "Winter",
+    month >= 9 ~ "Winter"
+    ))%>%
+  aggregate(individualCount ~season+site_code+year, sum)
+
+#mean n per site per season
+mean_site_season<-aggregate(individualCount ~season+site_code, birds_sites_seasons_year, mean)
+
+ggplot(mean_site_season, aes(fill=season, y=individualCount, x=site_code))+
+geom_bar(position='dodge', stat='identity')+
+  theme_classic()+
+    xlab("Site")+
+  ylab("Mean number of bird observations")+ 
+  coord_cartesian(expand=F)+
+  scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 10))+
+    theme(axis.text.x = element_text(size = 6, angle = 45, hjust = 1))
+
+#mean n per site per year
+mean_site_year<-aggregate(individualCount ~year+site_code, birds_sites_seasons_year, mean)
+
+ggplot(mean_site_year, aes(color=site_code, y=individualCount, x=year))+
+geom_point()+
+  theme_classic()+
+    xlab("Year")+
+  ylab("Mean number of bird observations")+ 
+  coord_cartesian(expand=F)+
+  scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 10))+
+    theme(axis.text.x = element_text(size = 6, angle = 45, hjust = 1))
+
+#mean n per season per year
+
+mean_year_season<-aggregate(individualCount ~season+year, birds_sites_seasons_year, mean)
+
+ggplot(mean_year_season, aes(color=season, y=individualCount, x=year))+
+  geom_point()+
+geom_smooth(se=F)+
+  theme_classic()+
+    xlab("Year")+
+  ylab("Mean number of bird observations")+ 
+  coord_cartesian(expand=F)+
+  scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 10))+
+    theme(axis.text.x = element_text(size = 6, angle = 45, hjust = 1))
+
+year_season_site<-aggregate(individualCount ~season+year+site_code, birds_sites_seasons_year, sum)
+
+year_count<-aggregate(individualCount ~year, birds_sites_seasons_year, sum)
+
+#var in abundance across sites
+library(mvabund)
+library(pastecs)
+library(gtable)
+
+birddat <- mvabund(expanded_sites$abund)
+birddat <- as.mvabund(year_count)
+mvabund::meanvar.plot(birddat)
+
+glm<-manyglm(individualCount ~season+year+site_code,data=year_season_site)
+glm_stats<-summary.manyglm(glm)
+#table(glm_stats)
+
+topten_winter<-birds_species_2%>%group_by(species,season)%>%
+  filter(season=="Winter")%>%
+    arrange(desc(individualCount))
+topten_winter <- topten_winter[1:10,]
+
+topten_summer<-birds_species_2%>%group_by(species,season)%>%
+  filter(season=="Summer")%>%
+    arrange(desc(individualCount))
+topten_summer <- topten_summer[1:10,]
+
+birds_species_seasons<-full_join(topten_summer,topten_winter)
+
+#chisq<-birds_seasons_2%>%
+#  subset(select=c(individualCount,season))
+#stats::chisq.test(chisq$individualCount,chisq$season)
+#glm<-glm(chisq)
+#anova(glm)
+
+#remove scale as a factor and add season
+
+ggplot(birds_species_seasons, aes(fill=season, y=individualCount, x=species))+
+geom_bar(position='dodge', stat='identity')+
+  theme_classic()+
+    xlab("Species")+
+  ylab("Number of bird observations")+ 
+  coord_cartesian(expand=F)+
+  scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 10))+
+    theme(axis.text.x = element_text(size = 6, angle = 45, hjust = 1))
+```
+
 
 birds/regions
 ```{r, echo=FALSE}
@@ -193,22 +311,189 @@ shrubs_by_area_km<-shrubs_by_area %>%
   mutate('shrubs_km' = n_shrubs/area)%>%
   drop_units()
 
-birds_shrubs_2<-aggregate(individualCount ~site_code, expanded_sites, sum)
-birds_shrubs_2$scale<-('buffered sites')
-birds_shrubs_km_buf<-full_join(birds_shrubs_2,shrubs_by_area_km)%>%
+#summer
+
+birds_shrubs_2_summer<-expanded_sites%>%
+  group_by(month, individualCount, site_code)%>%
+  summarise(individualCount=n())%>%
+    mutate(season = case_when(
+    month >= 3 & month <9 ~ "Non-Breeding",
+    month < 3  ~ "Breeding",
+    month >= 9 ~ "Breeding"
+    ))%>%
+  aggregate(individualCount ~season+site_code, sum)%>%
+  filter(season=="Non-Breeding")
+
+birds_shrubs_km_summer<-full_join(birds_shrubs_2_summer,shrubs_by_area_km)%>%
   drop_na()
 
-ggplot(birds_shrubs_km_buf, aes(y=individualCount, x=shrubs_km))+
+#winter
+
+birds_shrubs_winter<-expanded_sites%>%
+  group_by(month, individualCount, site_code)%>%
+  summarise(individualCount=n())%>%
+    mutate(season = case_when(
+    month >= 3 & month <9 ~ "Non-Breeding",
+    month < 3  ~ "Breeding",
+    month >= 9 ~ "Breeding"
+    ))%>%
+  aggregate(individualCount ~season+site_code, sum)%>%
+    filter(season=="Breeding")
+
+birds_shrubs_km_winter<-full_join(birds_shrubs_winter,shrubs_by_area_km)%>%
+  drop_na()
+
+#summer, buffered
+
+ggplot(birds_shrubs_km_summer, aes(y=individualCount, x=shrubs_km))+
 geom_point()+
   theme_classic()+
   geom_smooth(se=F)+
     xlab("Shrubs per square kilometer")+
   ylab("Bird count")+ 
-  ggtitle("Shrub Density and Bird Observations at Buffered Sites")+
+  ggtitle("Shrub Density and Summer Bird Observations")+
+  scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 10)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 20)) 
+
+#winter, buffered
+
+ggplot(birds_shrubs_km_winter, aes(y=individualCount, x=shrubs_km))+
+geom_point()+
+  theme_classic()+
+  geom_smooth(se=F)+
+    xlab("Shrubs per square kilometer")+
+  ylab("Bird count")+ 
+  ggtitle("Shrub Density and Winter Bird Observations")+
   scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 10)) +
   scale_x_continuous(breaks = scales::pretty_breaks(n = 20)) 
 
 ```
+shrubs/km^2 and n species
+
+```{r, echo=FALSE}
+n_shrubs <- new_shrubs %>% 
+  group_by(site_code) %>% 
+    dplyr::summarise(n_shrubs = n())
+
+n_shrubs$n_shrubs=as.numeric(levels(n_shrubs$n_shrubs))[n_shrubs$n_shrubs]
+
+polygons$area<-st_area(polygons)
+names(polygons)[1]<-paste("site_code") 
+polygons<-polygons%>%mutate(site_code = recode(site_code, 'HeartofMojave' = "Heartofmojave") )
+shrubs_by_area<-merge(new_shrubs,polygons, by='site_code')
+
+shrubs_by_area<-shrubs_by_area %>% 
+  group_by(site_code,area) %>% 
+    dplyr::summarise(n_shrubs = n())%>%
+  mutate('shrubs_m^2' = n_shrubs/area)
+
+#shrubs/km^2 since m^2 is tiny
+shrubs_by_area_km<-shrubs_by_area %>% 
+  group_by(site_code,area) %>% 
+  mutate(area=area/1000000)%>%
+    dplyr::summarise(n_shrubs = n())%>%
+  mutate('shrubs_km' = n_shrubs/area)%>%
+  drop_units()
+
+#summer
+
+species_shrubs_2_summer<-expanded_sites%>%
+  group_by(month, species, site_code)%>%
+  summarise()%>%
+    mutate(season = case_when(
+    month >= 3 & month <9 ~ "Non-Breeding",
+    month < 3  ~ "Breeding",
+    month >= 9 ~ "Breeding"
+    ))%>%
+    filter(season=="Non-Breeding")
+
+species_sites_summer<-species_shrubs_2_summer%>%group_by(species,site_code,season)%>%
+ summarise()
+species_sites_summer$species_count<-1
+
+species_sites_summer<-species_sites_summer%>%
+group_by(site_code,species_count,season) %>%
+  aggregate(species_count~site_code,sum)
+
+
+  #aggregate(species ~season+site_code, sum)%>%
+
+species_shrubs_km_summer<-full_join(species_sites_summer,shrubs_by_area_km)%>%
+  drop_na()
+
+#winter
+
+species_shrubs_2_winter<-expanded_sites%>%
+  group_by(month, species, site_code)%>%
+  summarise()%>%
+    mutate(season = case_when(
+    month >= 3 & month <9 ~ "Non-Breeding",
+    month < 3  ~ "Breeding",
+    month >= 9 ~ "Breeding"
+    ))%>%
+    filter(season=="Breeding")
+
+species_sites_winter<-species_shrubs_2_winter%>%group_by(species,site_code,season)%>%
+ summarise()
+species_sites_winter$species_count<-1
+
+species_sites_winter<-species_sites_winter%>%
+group_by(site_code,species_count,season) %>%
+  aggregate(species_count~site_code,sum)
+
+species_shrubs_km_winter<-full_join(species_sites_winter,shrubs_by_area_km)%>%
+  drop_na()
+
+#summer, buffered
+
+ggplot(birds_shrubs_km_summer, aes(y=individualCount, x=shrubs_km))+
+geom_point()+
+  theme_classic()+
+  geom_smooth(se=F)+
+    xlab("Shrubs per square kilometer")+
+  ylab("Bird count")+ 
+  ggtitle("Shrub Density and Summer Bird Observations")+
+  scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 10)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 20)) 
+
+#winter, buffered
+
+ggplot(birds_shrubs_km_winter, aes(y=individualCount, x=shrubs_km))+
+geom_point()+
+  theme_classic()+
+  geom_smooth(se=F)+
+    xlab("Shrubs per square kilometer")+
+  ylab("Bird count")+ 
+  ggtitle("Shrub Density and Winter Bird Observations")+
+  scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 10)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 20)) 
+
+#for species
+
+ggplot(species_shrubs_km_summer, aes(y=species_count, x=shrubs_km))+
+geom_point()+
+  theme_classic()+
+  geom_smooth(se=F)+
+    xlab("Shrubs per square kilometer")+
+  ylab("Species count")+ 
+  ggtitle("Shrub Density and Summer Species Count")+
+  scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 10)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 20)) 
+
+#winter, buffered
+
+ggplot(species_shrubs_km_winter, aes(y=species_count, x=shrubs_km))+
+geom_point()+
+  theme_classic()+
+  geom_smooth(se=F)+
+    xlab("Shrubs per square kilometer")+
+  ylab("Species count")+ 
+  ggtitle("Shrub Density and Winter Species Count")+
+  scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 10)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 20)) 
+
+```
+
 
 shrub density and sites
 ```{r, echo=FALSE}
@@ -241,6 +526,21 @@ ggplot(n_species_sites,aes(x=site_code,y=species_count))+
    scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 10))+
     theme(axis.text.x = element_text(size = 8, angle = 45, hjust = 1))
 ```
+site/number of birds-buffered
+```{r}
+n_birds_sites<-expanded_sites%>%group_by(site_code,individualCount)%>%
+  aggregate(individualCount~site_code,sum)
+
+ggplot(n_birds_sites,aes(x=site_code,y=individualCount))+
+  geom_bar(position='dodge', stat='identity')+
+  theme_classic()+
+  geom_smooth(se=F)+
+  xlab("Site")+
+  ylab("Number of bird observations")+
+   scale_y_continuous(labels=comma,breaks = scales::pretty_breaks(n = 10))+
+    theme(axis.text.x = element_text(size = 8, angle = 45, hjust = 1))
+```
+
 table formatting is wonky
 
 tables of species-regions
@@ -261,5 +561,35 @@ arrange(desc(individualCount)) %>%
 group_by(site_code) %>% slice(1:10)
 
 knitr::kable(topten_4, format="html")
+```
+
+map of plots
+```{r}
+
+plot(st_geometry(polygons))
+
+library(ggmap)
+caMap = map_data("state")%>%
+  filter(region =="california")
+
+library(raster)
+
+###
+library(tidyr)
+library(broom)
+
+shpfile <- prog_polys%>%
+  st_zm()
+  shpfile<-as_Spatial(shpfile)
+  shpfile<-spTransform(shpfile,"+init=epsg:4326") # transform coordinates
+tidydta2 <- tidy(shpfile, group=group) 
+
+ggplot(data = caMap) + 
+  geom_polygon(aes(x=long,y=lat),color = "black", fill = "gray" ) +
+  coord_map(xlim = c(-122.5, -115.0),ylim = c(32.5,37.5))+
+  geom_polygon(aes(x=long, y=lat, group=group), 
+               data=tidydta2, 
+               color="red", alpha=.2, size=.2) 
+
 ```
 
