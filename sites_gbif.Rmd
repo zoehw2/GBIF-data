@@ -6,6 +6,17 @@ output: html_document
 ---
 recursive
 ```{r}
+library(sf)
+library(tidyverse)
+library(sp)
+library(rgdal)
+library(raster)
+library(rgeos)
+library(here)
+library(wellknown)
+library(spocc)
+library(buffeRs)
+
 data_path <- "sites"
 
 read_zip = function(f){
@@ -23,6 +34,8 @@ mean(st_area(polygons))#10km^2 should be bigger than 0.27km^2
 ```
 
 ```{r}
+library(dplyr)
+
 data_path_2 <- "gbif_csv"
 
 read_csv = function(f){
@@ -103,7 +116,7 @@ Tejon_ERG$site<-"Tejon_ERG"
 
 gbif_new<-rbind(Carrizo_1,Carrizo_3,Carrizo_4,Carrizo_5,Carrizo_6,Carrizo_soda_shrubs,Cuyama_3,Mojave_4,Panoche_1,Panoche_3,Semitropic,Sunset_1,Tejon_ERG)
 
-st_area(gbif_new)
+#st_area(gbif_new)
 
 ```
 
