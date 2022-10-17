@@ -7,7 +7,9 @@ output: html_document
 from ebird
 ```{r}
 library(sf)
+library(terra)
 library(raster)
+library(rgdal)
 library(MODIS)
 library(exactextractr)
 library(viridis)
@@ -72,5 +74,292 @@ new_names <- format(as.Date(names(tifs)), "%Y") %>%
   sprintf("modis_mcd12q1_umd_%s.tif", .) %>% 
   file.path(dirname(tifs), .)
 file.rename(tifs, new_names)
+```
+
+```{r}
+# load the landcover data
+landcover <- list.files("data/modis", "^modis_mcd12q1_umd", 
+                        full.names = TRUE) %>% 
+  stack()
+# label layers with year
+landcover <- names(landcover) %>% 
+  str_extract("(?<=modis_mcd12q1_umd_)[0-9]{4}") %>% 
+  paste0("y", .) %>% 
+  setNames(landcover, .)
+landcover
+#> class      : RasterStack 
+#> dimensions : 1969, 4301, 8468669, 9  (nrow, ncol, ncell, nlayers)
+#> resolution : 463, 463  (x, y)
+#> extent     : -8745491, -6752783, 3242262, 4154525  (xmin, xmax, ymin, ymax)
+#> crs        : +proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs 
+#> names      : y2010, y2011, y2012, y2013, y2014, y2015, y2016, y2017, y2018 
+#> min values :     0,     0,     0,     0,     0,     0,     0,     0,     0 
+#> max values :   255,   255,   255,   255,   255,   255,   255,   255,   255
+```
+names are printing yNA.1, etc instead of y2010 etc
+so max integer below is non-numeric
+fix
+
+```{r}
+max_lc_year <- names(landcover) %>% 
+  str_extract("[0-9]{4}") %>% 
+  as.integer() %>% 
+  max()
+```
+modis data now loaded for these specs
+
+landscape metrics- ebird data matched to modis
+note likely won't yield anything until i fix year issue
+```{r}
+neighborhood_radius <- 5 * ceiling(max(res(landcover))) / 2
+ebird_buff <- ebird %>% 
+  distinct(year = format(observation_date, "%Y"),
+           locality_id, latitude, longitude) %>% 
+  # for 2019 use 2018 landcover data
+  mutate(year_lc = if_else(as.integer(year) > max_lc_year, 
+                           as.character(max_lc_year), year),
+         year_lc = paste0("y", year_lc)) %>% 
+  # convert to spatial features
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
+  # transform to modis projection
+  st_transform(crs = projection(landcover)) %>% 
+  # buffer to create neighborhood around each point
+  st_buffer(dist = neighborhood_radius) %>% 
+  # nest by year
+  nest(data = c(year, locality_id, geometry))
+```
+
+```{r}
+# function to summarize landcover data for all checklists in a given year
+calculate_pland <- function(yr, regions, lc) {
+  locs <- st_set_geometry(regions, NULL)
+  exact_extract(lc[[yr]], regions, progress = FALSE) %>% 
+    map(~ count(., landcover = value)) %>% 
+    tibble(locs, data = .) %>% 
+    unnest(data)
+}
+# iterate over all years extracting landcover for all checklists in each
+lc_extract <- ebird_buff %>% 
+  mutate(pland = map2(year_lc, data, calculate_pland, lc = landcover)) %>% 
+  select(pland) %>% 
+  unnest(cols = pland)
+```
+
+proportion of neighbourhood within each land cover class
+```{r}
+pland <- lc_extract %>% 
+  # calculate proporiton
+  group_by(locality_id, year) %>% 
+  mutate(pland = n / sum(n)) %>% 
+  ungroup() %>% 
+  select(-n) %>% 
+  # remove NAs after tallying so pland is relative to total number of cells
+  filter(!is.na(landcover))
+```
+
+desc names
+```{r}
+# convert names to be more descriptive
+lc_names <- tibble(landcover = 0:15,
+                   lc_name = c("pland_00_water", 
+                               "pland_01_evergreen_needleleaf", 
+                               "pland_02_evergreen_broadleaf", 
+                               "pland_03_deciduous_needleleaf", 
+                               "pland_04_deciduous_broadleaf", 
+                               "pland_05_mixed_forest",
+                               "pland_06_closed_shrubland", 
+                               "pland_07_open_shrubland", 
+                               "pland_08_woody_savanna", 
+                               "pland_09_savanna", 
+                               "pland_10_grassland", 
+                               "pland_11_wetland", 
+                               "pland_12_cropland", 
+                               "pland_13_urban", 
+                               "pland_14_mosiac", 
+                               "pland_15_barren"))
+pland <- pland %>% 
+  inner_join(lc_names, by = "landcover") %>% 
+  arrange(landcover) %>% 
+  select(-landcover)
+
+# tranform to wide format, filling in implicit missing values with 0s%>% 
+pland <- pland %>% 
+  pivot_wider(names_from = lc_name, 
+              values_from = pland, 
+              values_fill = list(pland = 0))
+
+# save
+write_csv(pland, "data/modis_pland_location-year.csv")
+```
+
+habitat covars
+```{r}
+agg_factor <- round(2 * neighborhood_radius / res(landcover))
+r <- raster(landcover) %>% 
+  aggregate(agg_factor) 
+r <- bcr %>% 
+  st_transform(crs = projection(r)) %>% 
+  rasterize(r, field = 1) %>% 
+  # remove any empty cells at edges
+  trim()
+r <- writeRaster(r, filename = "data/prediction-surface.tif", overwrite = TRUE)
+```
+
+pland again
+```{r}
+# get cell centers and create neighborhoods
+r_centers <- rasterToPoints(r, spatial = TRUE) %>% 
+  st_as_sf() %>% 
+  transmute(id = row_number())
+r_cells <- st_buffer(r_centers, dist = neighborhood_radius)
+
+# extract landcover values within neighborhoods, only needed most recent year
+lc_extract_pred <- landcover[[paste0("y", max_lc_year)]] %>% 
+  exact_extract(r_cells, progress = FALSE) %>% 
+  map(~ count(., landcover = value)) %>% 
+  tibble(id = r_cells$id, data = .) %>% 
+  unnest(data)
+
+# calculate the percent for each landcover class
+pland_pred <- lc_extract_pred %>% 
+  count(id, landcover) %>% 
+  group_by(id) %>% 
+  mutate(pland = n / sum(n)) %>% 
+  ungroup() %>% 
+  select(-n) %>% 
+  # remove NAs after tallying so pland is relative to total number of cells
+  filter(!is.na(landcover))
+
+# convert names to be more descriptive
+pland_pred <- pland_pred %>% 
+  inner_join(lc_names, by = "landcover") %>% 
+  arrange(landcover) %>% 
+  select(-landcover)
+
+# tranform to wide format, filling in implicit missing values with 0s
+pland_pred <- pland_pred %>% 
+  pivot_wider(names_from = lc_name, 
+              values_from = pland, 
+              values_fill = list(pland = 0)) %>% 
+  mutate(year = max_lc_year) %>% 
+  select(id, year, everything())
+
+# join in coordinates
+pland_coords <- st_transform(r_centers, crs = 4326) %>% 
+  st_coordinates() %>% 
+  as.data.frame() %>% 
+  cbind(id = r_centers$id, .) %>% 
+  rename(longitude = X, latitude = Y) %>% 
+  inner_join(pland_pred, by = "id")
+```
+
+spatial format to map
+```{r}
+forest_cover <- pland_coords %>% 
+  # convert to spatial features
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
+  st_transform(crs = projection(r)) %>% 
+  # rasterize points
+  rasterize(r, field = "pland_04_deciduous_broadleaf") %>% 
+  # project to albers equal-area for mapping
+  projectRaster(crs = st_crs(102003)$proj4string, method = "ngb") %>% 
+  # trim off empty edges of raster
+  trim()
+
+# make a map
+par(mar = c(0.25, 0.25, 2, 0.25))
+t <- str_glue("Proportion of Deciduous Broadleaf Forest\n",
+              "{max_lc_year} MODIS Landcover")
+plot(forest_cover, axes = FALSE, box = FALSE, col = viridis(10), main = t)
+```
+
+elevation etc need to be done manually
+```{r}
+
+```
+
+load, crop to modis size, reproject
+```{r}
+elev <- raster("data/elevation_1KMmd_GMTEDmd.tif")
+# crop, buffer bcr by 10 km to provide a little wiggly room
+elev <- bcr %>% 
+  st_buffer(dist = 10000) %>% 
+  st_transform(crs = projection(elev)) %>% 
+  crop(elev, .) %>% 
+  projectRaster(crs = projection(landcover))
+```
+
+for neighbourhoods
+```{r}
+# buffer each checklist location
+ebird_buff_noyear <- ebird %>% 
+  distinct(locality_id, latitude, longitude) %>% 
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
+  st_transform(crs = projection(elev)) %>% 
+  st_buffer(dist = neighborhood_radius)
+
+# extract elevation values and calculate median and sd
+locs <- st_set_geometry(ebird_buff_noyear, NULL) %>% 
+    mutate(id = row_number())
+elev_checklists <- exact_extract(elev, ebird_buff_noyear, progress = FALSE) %>% 
+  map_dfr(~ tibble(elevation_median = mean(.$value, na.rm = TRUE),
+                   elevation_sd = sd(.$value, na.rm = TRUE))) %>% 
+  # join to lookup table to get locality_id
+  bind_cols(locs, .)
+```
+
+for prediction surface
+```{r}
+# extract and calculate median and sd
+elev_pred <- exact_extract(elev, r_cells, progress = FALSE) %>% 
+  map_dfr(~ tibble(elevation_median = mean(.$value, na.rm = TRUE),
+                   elevation_sd = sd(.$value, na.rm = TRUE))) %>% 
+  # join to lookup table to get locality_id
+  bind_cols(st_drop_geometry(r_cells), .)
+```
+
+combine covars
+```{r}
+# checklist covariates
+pland_elev_checklist <- inner_join(pland, elev_checklists, by = "locality_id")
+write_csv(pland_elev_checklist, "data/pland-elev_location-year.csv")
+
+# prediction surface covariates
+pland_elev_pred <- inner_join(pland_coords, elev_pred, by = "id")
+write_csv(pland_elev_pred, "data/pland-elev_prediction-surface.csv")
+glimpse(pland_elev_pred)
+#> Rows: 90,949
+#> Columns: 22
+#> $ id                            <int> 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25…
+#> $ longitude                     <dbl> -77.3, -77.3, -77.3, -77.3, -77.3, -77.2, -77.4, -77.3, -77.3, -77.3, -77.3, -77.2, -77.2…
+#> $ latitude                      <dbl> 37.2, 37.2, 37.2, 37.2, 37.2, 37.2, 37.2, 37.2, 37.2, 37.2, 37.2, 37.2, 37.2, 37.2, 37.2,…
+#> $ year                          <int> 2018, 2018, 2018, 2018, 2018, 2018, 2018, 2018, 2018, 2018, 2018, 2018, 2018, 2018, 2018,…
+#> $ pland_00_water                <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+#> $ pland_01_evergreen_needleleaf <dbl> 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0…
+#> $ pland_02_evergreen_broadleaf  <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+#> $ pland_03_deciduous_needleleaf <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+#> $ pland_04_deciduous_broadleaf  <dbl> 0.0000, 0.1724, 0.0345, 0.0000, 0.0000, 0.0345, 0.0000, 0.0000, 0.0000, 0.0000, 0.0345, 0…
+#> $ pland_05_mixed_forest         <dbl> 0.0000, 0.0000, 0.0000, 0.1379, 0.1379, 0.2759, 0.0000, 0.0000, 0.0345, 0.1379, 0.0345, 0…
+#> $ pland_06_closed_shrubland     <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+#> $ pland_07_open_shrubland       <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+#> $ pland_08_woody_savanna        <dbl> 0.966, 0.828, 0.724, 0.690, 0.862, 0.690, 0.621, 0.966, 0.793, 0.828, 0.793, 0.310, 0.552…
+#> $ pland_09_savanna              <dbl> 0.0000, 0.0000, 0.2069, 0.1724, 0.0000, 0.0000, 0.0345, 0.0345, 0.1379, 0.0345, 0.1379, 0…
+#> $ pland_10_grassland            <dbl> 0.0345, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0345, 0.0000, 0.0000, 0…
+#> $ pland_11_wetland              <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+#> $ pland_12_cropland             <dbl> 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0…
+#> $ pland_13_urban                <dbl> 0.0000, 0.0000, 0.0345, 0.0000, 0.0000, 0.0000, 0.3448, 0.0000, 0.0000, 0.0000, 0.0000, 0…
+#> $ pland_14_mosiac               <dbl> 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000…
+#> $ pland_15_barren               <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+#> $ elevation_median              <dbl> 40.0, 41.8, 42.6, 42.8, 42.5, 42.8, 45.6, 44.7, 43.6, 41.2, 40.6, 40.9, 42.8, 78.0, 68.1,…
+#> $ elevation_sd                  <dbl> 3.75, 2.78, 2.41, 3.28, 1.40, 1.66, 2.74, 3.33, 2.29, 2.32, 2.52, 3.41, 1.53, 8.61, 7.02,…
+```
+
+data prep done, now to model species distributions
+
+may need to use random forest models to account for landscape stuff before going on to occupancy models for bird species/counts in particular
+
+#how much of my data is ebird?
+```{r}
+#all except 3 points!!! from buffered data
 ```
 

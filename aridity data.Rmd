@@ -1,0 +1,333 @@
+---
+title: "aridity data"
+author: "Zoë Hillier-Weltman"
+date: "17/10/2022"
+output: html_document
+---
+this is an example, need to modify to suit california
+```{r}
+# Load packages
+library(raster) # Raster importing and manipulation
+library(ggplot2) # Plotting the raster image
+library(dplyr) # General data processing
+
+```
+
+
+```{r}
+#--- Download the files from the TerraClimate website ---#
+# Precipitation
+download.file(url = 'http://thredds.northwestknowledge.net:8080/thredds/fileServer/TERRACLIMATE_ALL/data/TerraClimate_ppt_2019.nc',
+              destfile = 'ppt.nc')
+
+# Evapotranspiration
+download.file(url = 'http://thredds.northwestknowledge.net:8080/thredds/fileServer/TERRACLIMATE_ALL/data/TerraClimate_pet_2019.nc',
+              destfile = 'pet.nc')
+
+#--- Import the downloaded files ---#
+# Precipitation
+ppt <- stack(x = 'ppt.nc')
+
+# Evapotranspiration
+pet <- stack(x = 'pet.nc')
+
+#--- Inspect ---#
+# Precipitation
+plot(ppt)
+```
+
+```{r}
+#--- Raster maths ---#
+# Precipitation
+ppt_mean <- calc(ppt, # RasterStack object
+                 fun = mean, # Function to apply across the layers
+                 na.rm = TRUE)
+
+# Evapotranspiration
+pet_mean <- calc(pet,
+                 fun = mean, 
+                 na.rm = TRUE)
+```
+
+```{r}
+#--- Set the extent ---#
+# Cut off all values below 60 degrees South (removing Antarctica)
+ext <- extent(c(xmin = -180, xmax = 180, 
+                ymin = -60, ymax = 90))
+
+#--- Crop ---#
+# Precipitation
+ppt_mean <- crop(x = ppt_mean, 
+                 y = ext)
+
+# Evapotranspiration
+pet_mean <- crop(x = pet_mean, 
+                 y = ext)
+
+#--- Inspect ---#
+# Precipitation
+plot(main = 'Precipitation',
+     ppt_mean)
+```
+
+```{r}
+# Evapotranspiration
+plot(main = 'Evapotranspiration',
+     pet_mean)
+
+```
+
+```{r}
+#--- Calculate aridity index ---#
+# Precipitation (ppt) / Evapotranspiration (pet)
+aridity_index <- overlay(x = ppt_mean, # Raster object 1
+                         y = pet_mean, # Raster object 2
+                         fun = function(x, y){return(x / y)}) # Function to apply
+```
+
+```{r}
+#--- Convert raster to a matrix ---#
+aridity_index_matrix <- rasterToPoints(aridity_index)
+```
+
+```{r}
+#--- Convert to the matrix to a dataframe ---#
+aridity_index_df <- as.data.frame(aridity_index_matrix)
+
+#--- Recode aridity index into categories --#
+aridity_index_df <- aridity_index_df %>% 
+  # Recode
+  mutate(category = case_when(
+    is.infinite(layer) ~ 'Humid',
+    layer >= 0.65 ~ 'Humid',
+    layer >= 0.5 & layer < 0.65 ~ 'Dry sub-humid',
+    layer >= 0.2 & layer < 0.5 ~ 'Semi-arid',
+    layer >= 0.05 & layer < 0.2 ~ 'Arid',
+    layer < 0.05 ~ 'Hyper-arid'
+  )) %>% 
+  # Convert to ordered factor
+  mutate(category = factor(category,
+                           levels = c('Hyper-arid', 'Arid', 'Semi-arid',
+                                      'Dry sub-humid', 'Humid'),
+                           ordered = TRUE))
+```
+
+```{r}
+#--- Set a colour palette ---#
+colours <- c('#e31a1c', '#fd8d3c', '#fecc5c', '#ffffb2', '#666666')
+
+#--- Plot the data ---#
+ggplot(data = aridity_index_df) +
+  aes(y = y,
+      x = x,
+      fill = category) +
+  geom_raster() +
+  scale_fill_manual(values = colours,
+                    guide = guide_legend(reverse = TRUE)) +
+  scale_y_continuous(limits = c(-60, 90),
+                     expand = c(0, 0),
+                     breaks = c(-40, -20, 0, 20, 40, 60, 80),
+                     labels = c(expression('40'*degree*'S'),
+                                expression('20'*degree*'S'),
+                                expression('0'*degree),
+                                expression('20'*degree*'N'),
+                                expression('40'*degree*'N'),
+                                expression('60'*degree*'N'),
+                                expression('80'*degree*'N'))) +
+  scale_x_continuous(limits = c(-180, 180),
+                     expand = c(0, 0),
+                     breaks = c(-180, -120, -60, 0, 60, 120, 180),
+                     labels = c(expression('180'*degree*'W'),
+                                expression('120'*degree*'W'),
+                                expression('60'*degree*'W'),
+                                expression('0'*degree),
+                                expression('60'*degree*'E'),
+                                expression('120'*degree*'E'),
+                                expression('180'*degree*'E'))) +
+  theme_bw(base_size = 14) +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size = 10),
+        axis.title = element_blank(),
+        panel.grid.major = element_line(linetype = 2, 
+                                        size = 0.5,
+                                        colour = '#666666'),
+        panel.grid.minor = element_blank())
+```
+
+part 2, over time
+
+```{r}
+#--- Load packages ---#
+library(purrr)
+
+#--- Precipitation ---#
+# Construct a vector of URLs to download data
+## Years to download
+years <- c(seq(from = 1995, to = 2015, by = 5), 2019)
+## First chunk of the URL
+precipitation_lead <- 'http://thredds.northwestknowledge.net:8080/thredds/fileServer/TERRACLIMATE_ALL/data/TerraClimate_ppt_'
+## Piece together the precipitation_lead and year and add the file extension (.nc)
+precipitation_urls <- paste0(precipitation_lead, years, '.nc')
+
+# Construct a vector of destination files
+precipitation_destfile <- paste0('TerraClimate_ppt_', years, '.nc')
+
+# Download using the purrr::map2 functions
+map2(.x = precipitation_urls, # Input 1 to apply a function over
+     .y = precipitation_destfile, # Input 2 to apply a function over
+     ~ download.file(url = .x, # The function to apply
+                     destfile = .y,
+                     method = 'curl'))
+
+#--- Evapotranspiration
+# Construct a vector of URLs to download data
+## First chunk of the URL
+evapotranspiration_lead <- 'http://thredds.northwestknowledge.net:8080/thredds/fileServer/TERRACLIMATE_ALL/data/TerraClimate_pet_'
+## Piece together the precipitation_lead and year and add the file extension (.nc)
+evapotranspiration_urls <- paste0(evapotranspiration_lead, years, '.nc')
+
+# Construct a vector of destination files
+evapotranspiration_destfile <- paste0('TerraClimate_pet_', years, '.nc')
+
+# Download using the purrr::map2 functions
+map2(.x = evapotranspiration_urls,
+     .y = evapotranspiration_destfile,
+     ~ download.file(url = .x,
+                     destfile = .y,
+                     method = 'curl'))
+```
+
+```{r}
+#--- Precipitation ---#
+# Get a list of precipitation file names
+precipitation_files <- list.files(path = '.', pattern = '.ppt.')
+# Import using the purrr::map function to apply the raster::stack function
+precipitation_rasters <- map(.x = precipitation_files,
+                             ~ stack(.x))
+
+#--- Evapotranspiration ---#
+# Get a list of evapotranspiration file names
+evapotranspiration_files <- list.files(path = '.', pattern = '.pet.')
+# Import using the purrr::map function to apply the raster::stack function
+evapotranspiration_rasters <- map(.x = evapotranspiration_files,
+                                  ~stack(.x))
+```
+
+```{r}
+# Set extent to cover Southern Africa
+ext2 <- extent(10, 40, -37, -20)
+
+# Crop rasters
+## Precipitation
+precipitation_rasters <- map(.x = precipitation_rasters,
+                             ~ crop(.x, ext2))
+
+## Evapotranspiration
+evapotranspiration_rasters <- map(.x = evapotranspiration_rasters,
+                                  ~ crop(.x, ext2))
+```
+
+```{r}
+#-- Calculate mean annual values --#
+# Precipitation
+precipitation_rasters <- map(.x = precipitation_rasters,
+                             ~ calc(.x, 
+                                    fun = mean, 
+                                    na.rm = TRUE))
+
+# Evapotranspiration
+evapotranspiration_rasters <- map(.x = evapotranspiration_rasters,
+                                  ~ calc(.x, 
+                                         fun = mean, 
+                                         na.rm = TRUE))
+```
+
+```{r}
+#--- Convert each raster to a dataframe ---#
+# Precipitation
+precipitation_rasters <- map(.x = precipitation_rasters,
+                             ~ rasterToPoints(.x) %>% 
+                               as.data.frame(.) %>% 
+                               rename(precipitation = layer)) # For later join
+
+# Evapotranspiration
+evapotranspiration_rasters <- map(.x = evapotranspiration_rasters,
+                             ~ rasterToPoints(.x) %>% 
+                               as.data.frame(.) %>% 
+                               rename(evapotranspiration = layer)) # For later join
+
+#--- Join the precipitation and evapotranspiration dataframes ---#
+ai_df <- map2(.x = precipitation_rasters,
+              .y = evapotranspiration_rasters,
+              ~ left_join(.x, .y))
+
+#-- Add a year identifier to each dataframe --#
+years2 <- c(seq(from = 1995, to = 2015, by = 5), 2019)
+
+ai_df <- map2(.x = ai_df,
+              .y = years2,
+              ~ .x %>%
+                mutate(year = as.character(.y)))
+
+#-- Bind list items to make a single large dataframe (1995 to 2019) --#
+ai_df <- map_df(.x = ai_df,
+                ~ bind_rows(.x))
+
+#--- Calculate aridity index ---#
+ai_df <- ai_df %>% 
+  mutate(aridity_index = precipitation / evapotranspiration)
+
+#--- Recode aridity index into categories --#
+ai_df <- ai_df %>% 
+  # Recode
+  mutate(category = case_when(
+    is.infinite(aridity_index) ~ 'Humid',
+    aridity_index >= 0.65 ~ 'Humid',
+    aridity_index >= 0.5 & aridity_index < 0.65 ~ 'Dry sub-humid',
+    aridity_index >= 0.2 & aridity_index < 0.5 ~ 'Semi-arid',
+    aridity_index >= 0.05 & aridity_index < 0.2 ~ 'Arid',
+    aridity_index < 0.05 ~ 'Hyper-arid'
+  )) %>% 
+  # Convert to ordered factor
+  mutate(category = factor(category,
+                           levels = c('Hyper-arid', 'Arid', 'Semi-arid',
+                                      'Dry sub-humid', 'Humid'),
+                           ordered = TRUE))
+```
+
+```{r}
+# Load package
+library(rnaturalearth)
+library(rnaturalearthdata)
+
+#--- Get medium scale (1:50) map of Southern African countries ---#
+# Get a map of Africa
+africa <- ne_countries(scale = 50, 
+                       continent = 'Africa')
+
+# Extract Southern African countries
+country_filter <- c('ZAF', 'NAM', 'BWA', 'ZWE', 'MOZ', 'MWI', 'ZMB', 'AGO')
+
+s_africa <- africa %>%
+  st_as_sf(.) %>% # Convert the large SpatialPolygonDataFrame into a sf object
+  filter(sov_a3 %in% country_filter) # Filter out the countries I want
+```
+
+```{r}
+#--- Plot the data ---#
+ggplot() +
+  geom_raster(data = ai_df, # Plot the aridity index raster
+              aes(x = x,
+                  y = y,
+                  fill = category)) + 
+  geom_sf(data = s_africa,
+          alpha = 0) + # Plot Southern Africa
+  scale_fill_manual(values = colours, # Already set for the global aridity index map
+                    guide = guide_legend(reverse = TRUE)) +
+  coord_sf(ylim = c(-37, -21),
+           xlim = c(10, 40)) +
+  theme_void(base_size = 18) +
+  facet_wrap(~year, ncol = 2) +
+  theme(legend.title = element_blank())
+```
+
